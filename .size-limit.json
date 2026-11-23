@@ -1,0 +1,12 @@
+[
+	{
+		"name": "element",
+		"path": "src/element/index.ts",
+		"limit": "1550 B"
+	},
+	{
+		"name": "cloudflare/widget",
+		"path": "src/element/turnstile-widget.ts",
+		"limit": "350 B"
+	}
+]

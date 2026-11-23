@@ -1,0 +1,16 @@
+{
+	"name": "@playground/astro-comments",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview"
+	},
+	"dependencies": {
+		"@astrojs/node": "^11.1.14",
+		"@xsynaptic/astro-comments": "workspace:*",
+		"astro": "^7.4.13"
+	}
+}

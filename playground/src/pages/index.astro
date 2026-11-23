@@ -1,0 +1,69 @@
+---
+import { buildThread } from '@xsynaptic/astro-comments/render';
+
+import CommentList from '../components/comment-list.astro';
+import { commentStore, playgroundThread } from '../lib/comment-store.ts';
+
+const thread = buildThread(await commentStore.listApproved());
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta content="width=device-width" name="viewport" />
+		<title>astro-comments playground</title>
+	</head>
+	<body>
+		<comments-section data-error-message="Your comment could not be posted.">
+			<section id="comments">
+				<p data-comment-notice hidden role="status">
+					Your comment is awaiting moderation.
+				</p>
+				<CommentList comments={thread} />
+				<div data-comment-form-home>
+					<button data-open-form hidden type="button">
+						Leave a comment
+					</button>
+					<form action="/api/comments" data-comment-form hidden method="post">
+						<input name="thread" type="hidden" value={playgroundThread} />
+						<input name="parentId" type="hidden" value="" />
+						<input name="renderedAt" type="hidden" value="" />
+						<input aria-hidden="true" autocomplete="off" hidden name="extra" tabindex="-1" />
+						<label>
+							Name <input name="author" required />
+						</label>
+						<label>
+							Email <input name="authorEmail" type="email" />
+						</label>
+						<label>
+							Website <input name="authorUrl" type="url" />
+						</label>
+						<label>
+							Comment <textarea name="body" required></textarea>
+						</label>
+						<label>
+							<input data-remember type="checkbox" /> Remember me
+						</label>
+						<button data-clear-stored hidden type="button">
+							Forget me
+						</button>
+						<div data-comment-challenge></div>
+						<p data-comment-error hidden role="status"></p>
+						<button type="submit">Post comment</button>
+						<button data-close-form type="button">
+							Cancel
+						</button>
+					</form>
+				</div>
+			</section>
+		</comments-section>
+		<script>
+			import { defineCommentsSection } from '@xsynaptic/astro-comments/element';
+
+			import { stubWidget } from '../lib/stub-widget.ts';
+
+			defineCommentsSection({ challenge: () => stubWidget, storageKey: 'playground-comment-form' });
+		</script>
+	</body>
+</html>

@@ -1,0 +1,13 @@
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+.astro
+.claude
+.wrangler
+
+# Playwright
+test-results
+playwright-report
+blob-report
+.playwright

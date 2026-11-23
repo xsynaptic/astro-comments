@@ -1,0 +1,32 @@
+---
+import type { CommentNode } from '@xsynaptic/astro-comments/render';
+
+interface Props {
+	comments: Array<CommentNode>;
+}
+
+const { comments } = Astro.props;
+---
+
+<ol>
+	{comments.map((comment) => (
+		<li>
+			<article id={`comment-${comment.id}`}>
+				<p>
+					{comment.authorHref ? (
+						<a href={comment.authorHref} rel="nofollow ugc">
+							{comment.author}
+						</a>
+					) : (
+						comment.author
+					)}
+				</p>
+				<Fragment set:html={comment.bodyHtml} />
+				<button aria-expanded="false" data-reply={comment.id} hidden type="button">
+					Reply
+				</button>
+			</article>
+			{comment.replies.length > 0 ? <Astro.self comments={comment.replies} /> : undefined}
+		</li>
+	))}
+</ol>
