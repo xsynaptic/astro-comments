@@ -91,7 +91,7 @@
 		"check": "lefthook run check",
 		"size": "size-limit",
 		"version-packages": "changeset version",
-		"release": "pnpm build && pnpm check && pnpm test:e2e && changeset publish"
+		"release": "node scripts/release.ts"
 	},
 	"dependencies": {
 		"htmlparser2": "^12.0.0",

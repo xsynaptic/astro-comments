@@ -32,5 +32,5 @@ Add to this file only what an agent can't infer from the code and config.
 ## Releases
 
 - Pre-1.0: break APIs freely, with no compatibility shims, migration notes or staged releases
-- Every package change takes a minimal changeset, except a change confined to the README, which ships with the next release, or to `verify/` or `playground/`, which never ship
+- Every package change takes a minimal changeset, except a change confined to the README, which ships with the next release, or to `verify/`, `playground/` or `scripts/`, which never ship
 - The operator commits the version bump and publishes, through `pnpm release`

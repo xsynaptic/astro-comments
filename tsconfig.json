@@ -7,6 +7,6 @@
 		"allowImportingTsExtensions": true,
 		"types": ["node"]
 	},
-	"include": ["*.ts", "src", "verify", "playground/src", "playground/*.ts"],
+	"include": ["*.ts", "scripts", "src", "verify", "playground/src", "playground/*.ts"],
 	"exclude": ["dist"]
 }
