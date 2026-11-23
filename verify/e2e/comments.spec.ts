@@ -6,13 +6,13 @@ import { defaultMessages } from '@xsynaptic/astro-comments';
 
 const thread = 'posts/hello';
 
-// The handler refuses a form younger than three seconds
-const settledFormAge = 10_000;
+// The handler refuses a form filled in under three seconds
+const settledFillTimeMs = 10_000;
 
 async function openSettledPage(page: Page): Promise<void> {
 	await page.clock.install();
 	await page.goto('/');
-	await page.clock.fastForward(settledFormAge);
+	await page.clock.fastForward(settledFillTimeMs);
 }
 
 async function fillComment(page: Page, body: string): Promise<void> {
@@ -27,12 +27,12 @@ async function findPending(page: Page, body: string): Promise<StoredComment | un
 	return pending.find((comment) => comment.body === body);
 }
 
-function nativeForm(body: string, fields: Record<string, string> = {}): Record<string, string> {
+function postedForm(body: string, fields: Record<string, string> = {}): Record<string, string> {
 	return {
-		author: 'Native',
+		author: 'Direct',
 		body,
 		extra: '',
-		formAge: String(settledFormAge),
+		fillTimeMs: String(settledFillTimeMs),
 		parentId: '',
 		'stub-token': 'pass',
 		thread,
@@ -111,43 +111,9 @@ test.describe('the element', () => {
 	});
 });
 
-test.describe('the native fallback', () => {
-	test('redirects to the thread, where the element shows the notice once', async ({ page }) => {
-		const body = `A native post ${test.info().testId}`;
-		const response = await page.request.post('/api/comments', {
-			form: nativeForm(body),
-			maxRedirects: 0,
-		});
-
-		expect(response.status()).toBe(303);
-		const location = new URL(response.headers().location ?? '', page.url());
-
-		expect(`${location.pathname}${location.search}${location.hash}`).toBe(
-			'/?comment=received#comments',
-		);
-		expect(await findPending(page, body)).toBeDefined();
-
-		await page.goto(location.href);
-
-		await expect(page.getByText('Your comment is awaiting moderation.')).toBeVisible();
-		await expect(page).toHaveURL(/\/#comments$/);
-	});
-
-	test('answers a rejection in plain text', async ({ page }) => {
-		const response = await page.request.post('/api/comments', {
-			form: nativeForm('A reply to a comment still in moderation', { parentId: 'waiting' }),
-			maxRedirects: 0,
-		});
-
-		expect(response.status()).toBe(400);
-		expect(await response.text()).toBe(`${defaultMessages.parentMissing}\n`);
-	});
-});
-
-test('answers a JSON request with its message', async ({ page }) => {
+test('answers a rejection with its message as JSON', async ({ page }) => {
 	const response = await page.request.post('/api/comments', {
-		form: nativeForm('A comment on a page that takes none', { thread: 'posts/missing' }),
-		headers: { accept: 'application/json' },
+		form: postedForm('A comment on a page that takes none', { thread: 'posts/missing' }),
 	});
 
 	expect(response.status()).toBe(400);

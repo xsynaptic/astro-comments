@@ -7,14 +7,15 @@ export interface AssetsBinding {
 }
 
 // Once per isolate: the registry only changes with a deploy, which starts new isolates
-const resolvers = new WeakMap<AssetsBinding, ThreadResolver>();
+const resolvers = new WeakMap<AssetsBinding, Map<string, ThreadResolver>>();
 
 export function createAssetsThreadResolver(
 	assets: AssetsBinding,
 	registryPath: string,
 ): (thread: string, request: Request) => Promise<ThreadPage | undefined> {
 	return (thread, request) => {
-		let resolver = resolvers.get(assets);
+		const byPath = resolvers.get(assets) ?? new Map<string, ThreadResolver>();
+		let resolver = byPath.get(registryPath);
 
 		if (!resolver) {
 			resolver = createThreadResolver(async () => {
@@ -25,7 +26,8 @@ export function createAssetsThreadResolver(
 
 				return response.json();
 			});
-			resolvers.set(assets, resolver);
+			byPath.set(registryPath, resolver);
+			resolvers.set(assets, byPath);
 		}
 
 		return resolver(thread);

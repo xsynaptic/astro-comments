@@ -1,7 +1,9 @@
 import { styleText } from 'node:util';
 
-import type { CommentModerationStore, CommentStatus, StoredComment } from '#store.ts';
+import type { Decision } from '#cli/moderation.ts';
+import type { CommentModerationStore, StoredComment } from '#store.ts';
 
+import { applyDecision, createOwnerCheck, decisionColours } from '#cli/moderation.ts';
 import { printComment, printLegend, readKey } from '#cli/terminal.ts';
 
 export interface ModerationTally {
@@ -10,8 +12,6 @@ export interface ModerationTally {
 	skipped: number;
 	spam: number;
 }
-
-type Decision = Exclude<CommentStatus, 'pending'>;
 
 type Choice = (typeof choices)[number];
 
@@ -24,17 +24,12 @@ const choices = [
 	{ key: 'q', label: 'quit' },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; status?: Decision }>;
 
-const decisionColours = { approved: 'green', rejected: 'red', spam: 'magenta' } as const;
-
-// The form has no login, so a matching email only marks a candidate; approving it is what vouches
 export async function runModerationQueue(
 	store: CommentModerationStore,
 	ownerEmails: ReadonlyArray<string>,
 ): Promise<ModerationTally> {
 	const pending = await store.listPending();
-	const owners = new Set(ownerEmails.map((email) => normalizeEmail(email)));
-	const isOwnerCandidate = (comment: StoredComment) =>
-		comment.authorEmail !== undefined && owners.has(normalizeEmail(comment.authorEmail));
+	const isOwnerCandidate = createOwnerCheck(ownerEmails);
 	const tally: ModerationTally = { approved: 0, rejected: 0, skipped: 0, spam: 0 };
 
 	if (pending.length === 0) console.log(styleText('green', '✓ Nothing pending'));
@@ -91,17 +86,14 @@ async function decide(
 		return;
 	}
 
-	// Owner first, so a failure between the writes leaves the comment unpublished rather than unbadged
-	if (isCandidate && choice.status === 'approved') await store.setOwner([comment.id], true);
-
-	await store.setStatus([comment.id], choice.status);
+	await applyDecision(store, {
+		decision: choice.status,
+		id: comment.id,
+		isOwner: isCandidate && choice.status === 'approved',
+	});
 
 	tally[choice.status] += 1;
 	console.log(styleText(decisionColours[choice.status], `  ✓ ${choice.status}`));
-}
-
-function normalizeEmail(email: string): string {
-	return email.trim().toLowerCase();
 }
 
 // `A` decides the same row as `a` once this is the last one left

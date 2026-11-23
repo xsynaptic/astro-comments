@@ -1,5 +1,15 @@
 # @xsynaptic/astro-comments
 
+## 0.3.0
+
+### Minor Changes
+
+- The handler answers in JSON only; `formAge` becomes `fillTimeMs`; the CLI adds `--help`, `pending --json`, `approve`, `reject` and `spam` by id, and `delete --yes`
+
+### Patch Changes
+
+- `buildThreadRegistry` refuses a key claimed with two closing times; `createAssetsThreadResolver` keeps one registry per path
+
 ## 0.2.0
 
 ### Minor Changes

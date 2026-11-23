@@ -34,7 +34,7 @@ function mountSection(): HTMLFormElement {
 				<form action="/api/comments" data-comment-form hidden method="post">
 					<input name="thread" type="hidden" value="posts/a-post">
 					<input name="parentId" type="hidden" value="">
-					<input name="formAge" type="hidden" value="">
+					<input name="fillTimeMs" type="hidden" value="">
 					<input name="author" value="Ada">
 					<input name="authorEmail" value="">
 					<input name="authorUrl" value="">
@@ -86,7 +86,7 @@ afterEach(() => {
 });
 
 describe('a submitted comment form', () => {
-	test('posts the form to its own action and asks for JSON', async () => {
+	test('posts the form to its own action', async () => {
 		const form = mountSection();
 
 		respondWith({ ok: true });
@@ -99,7 +99,7 @@ describe('a submitted comment form', () => {
 		const [url, options] = vi.mocked(fetch).mock.calls[0] ?? [];
 
 		expect(url).toBe(form.action);
-		expect(options).toMatchObject({ headers: { accept: 'application/json' }, method: 'POST' });
+		expect(options).toMatchObject({ method: 'POST' });
 		expect((options?.body as FormData).get('body')).toBe('A comment');
 	});
 
@@ -116,7 +116,7 @@ describe('a submitted comment form', () => {
 			expect(fetch).toHaveBeenCalledOnce();
 		});
 
-		expect(postedField(0, 'formAge')).toBe('300000');
+		expect(postedField(0, 'fillTimeMs')).toBe('300000');
 		expect(postedField(0, 'parentId')).toBe('');
 	});
 

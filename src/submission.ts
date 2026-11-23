@@ -35,8 +35,8 @@ type Submission = Omit<z.infer<typeof submissionSchema>, 'challengeToken'> & {
 	challengeToken: string;
 };
 
-// The client measures the age itself, so its clock is never compared with this one
-const minimumFormAgeMs = 3000;
+// The client measures the time itself, so its clock is never compared with this one
+const minimumFillTimeMs = 3000;
 
 // `request.formData()` parses the whole body before the schema's 8000-character cap can apply
 const maximumBodyBytes = 32_768;
@@ -53,7 +53,7 @@ const submissionSchema = z.object({
 	authorUrl: z.httpUrl().max(200).optional(),
 	body: z.string().min(2).max(8000),
 	challengeToken: z.string().max(2048).optional(),
-	formAge: z.coerce.number().int().nonnegative(),
+	fillTimeMs: z.coerce.number().int().nonnegative(),
 	parentId: z.string().min(1).max(200).optional(),
 	thread: z.string().max(maximumThreadKeyLength).regex(threadKeyPattern),
 });
@@ -74,15 +74,8 @@ export async function handleCommentSubmission(
 	} catch (error) {
 		console.error(error);
 
-		return reject(request, 500, messages.unexpected);
+		return reject(500, messages.unexpected);
 	}
-}
-
-// The native form post reads the redirect; the client asks for JSON so it can stay on the page
-function accept(request: Request, threadUrl: URL): Response {
-	if (isJsonWanted(request)) return new Response(undefined, { status: 201 });
-
-	return Response.redirect(threadUrl.href, 303);
 }
 
 function createCommentId(): string {
@@ -108,10 +101,6 @@ async function isOverRateLimit(
 	const since = Math.floor(Date.now() / 1000) - windowSeconds;
 
 	return (await store.countRecentComments(ipHash, since)) >= maximumComments;
-}
-
-function isJsonWanted(request: Request): boolean {
-	return request.headers.get('accept')?.includes('application/json') === true;
 }
 
 // A parent under a former key of the same page still counts, so a renamed entry's old comments stay answerable
@@ -147,14 +136,12 @@ async function processSubmission(
 
 	const page = await config.resolveThread(submission.thread, request);
 
-	if (page === undefined) return reject(request, 400, messages.threadMissing);
+	if (page === undefined) return reject(400, messages.threadMissing);
 
-	const threadUrl = toThreadUrl(page.path, request);
-
-	if (!isThreadOpen(page)) return reject(request, 403, messages.closed);
+	if (!isThreadOpen(page)) return reject(403, messages.closed);
 
 	if (!(await isValidParent(submission, page.path, { config, request })))
-		return reject(request, 400, messages.parentMissing);
+		return reject(400, messages.parentMissing);
 
 	const remoteIp = config.getClientIp(request);
 	const ipHash = remoteIp ? await sha256(`${config.ipSalt}${remoteIp}`) : undefined;
@@ -162,19 +149,19 @@ async function processSubmission(
 
 	// Counts stored comments rather than attempts, so a failed challenge spends no one's allowance and this can run first
 	if (ipHash !== undefined && (await isOverRateLimit(config.store, ipHash, rateLimit))) {
-		return reject(request, 429, messages.tooMany, {
+		return reject(429, messages.tooMany, {
 			'retry-after': String(rateLimit.windowSeconds),
 		});
 	}
 
 	// Last, after the local checks: a challenge may be a network round trip, and a rejected request burns a single-use token
 	if (!(await config.challenge.verify(submission.challengeToken, remoteIp))) {
-		return reject(request, 403, messages.challenge);
+		return reject(403, messages.challenge);
 	}
 
 	await config.store.insert(await toNewComment(submission, ipHash));
 
-	return accept(request, threadUrl);
+	return new Response(undefined, { status: 201 });
 }
 
 // Empty and whitespace-only fields read as absent, so an untouched optional input is not a validation error
@@ -202,15 +189,14 @@ async function readSubmission(
 	challengeField: string,
 	messages: CommentMessages,
 ): Promise<Response | Submission> {
-	if (!isBodySizeAcceptable(request)) return reject(request, 413, messages.tooLarge);
+	if (!isBodySizeAcceptable(request)) return reject(413, messages.tooLarge);
 
 	const form = await readFormData(request);
 
-	if (!form) return reject(request, 400, messages.unreadable);
+	if (!form) return reject(400, messages.unreadable);
 
 	// Answered as `invalid`, so a bot cannot tell the trap from a schema failure
-	if (readField(form, commentFields.honeypot) !== undefined)
-		return reject(request, 400, messages.invalid);
+	if (readField(form, commentFields.honeypot) !== undefined) return reject(400, messages.invalid);
 
 	const parsed = submissionSchema.safeParse({
 		author: readField(form, commentFields.author),
@@ -218,36 +204,25 @@ async function readSubmission(
 		authorUrl: readField(form, commentFields.authorUrl),
 		body: readField(form, commentFields.body),
 		challengeToken: readField(form, challengeField),
-		formAge: readField(form, commentFields.formAge),
+		fillTimeMs: readField(form, commentFields.fillTimeMs),
 		parentId: readField(form, commentFields.parentId),
 		thread: readField(form, commentFields.thread),
 	});
 
-	if (!parsed.success) return reject(request, 400, messages.invalid);
+	if (!parsed.success) return reject(400, messages.invalid);
 
-	if (parsed.data.formAge < minimumFormAgeMs) return reject(request, 400, messages.tooFast);
+	if (parsed.data.fillTimeMs < minimumFillTimeMs) return reject(400, messages.tooFast);
 
 	const { challengeToken, ...fields } = parsed.data;
 
 	// Usually a widget that never finished or never loaded, which the challenge message explains better than `invalid`
-	if (challengeToken === undefined) return reject(request, 403, messages.challenge);
+	if (challengeToken === undefined) return reject(403, messages.challenge);
 
 	return { ...fields, challengeToken };
 }
 
-// The client asks for JSON so it can render the message inline; the native form post still gets the text page
-function reject(
-	request: Request,
-	status: number,
-	message: string,
-	headers: Record<string, string> = {},
-): Response {
-	if (isJsonWanted(request)) return Response.json({ message }, { headers, status });
-
-	return new Response(`${message}\n`, {
-		headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' },
-		status,
-	});
+function reject(status: number, message: string, headers: Record<string, string> = {}): Response {
+	return Response.json({ message }, { headers, status });
 }
 
 async function toNewComment(
@@ -274,19 +249,4 @@ async function toNewComment(
 	if (ipHash !== undefined) comment.ipHash = ipHash;
 
 	return comment;
-}
-
-// Checked before the insert, since a resolver answering `//host` would turn the 303 into an open redirect
-function toThreadUrl(threadPath: string, request: Request): URL {
-	const origin = new URL(request.url).origin;
-	const url = new URL(threadPath, origin);
-
-	if (!threadPath.startsWith('/') || url.origin !== origin) {
-		throw new Error(`resolveThread answered "${threadPath}", which is not a path on this site`);
-	}
-
-	url.searchParams.set('comment', 'received');
-	url.hash = 'comments';
-
-	return url;
 }

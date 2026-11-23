@@ -35,8 +35,10 @@ export function buildThreadRegistry(entries: Iterable<ThreadEntry>): ThreadRegis
 
 			const claimed = registry.get(key);
 
-			if (claimed !== undefined && claimed.path !== path) {
-				throw new Error(`Thread ${key} resolves to both ${claimed.path} and ${path}`);
+			if (claimed !== undefined && (claimed.path !== path || claimed.closesAt !== closesAt)) {
+				throw new Error(
+					`Thread ${key} resolves to both ${JSON.stringify(claimed)} and ${JSON.stringify(page)}`,
+				);
 			}
 
 			registry.set(key, page);

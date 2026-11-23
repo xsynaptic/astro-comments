@@ -98,7 +98,7 @@ function makeRequest({
 		author: 'Reader',
 		body: 'A comment worth keeping.',
 		[challengeField]: 'token',
-		formAge: '5000',
+		fillTimeMs: '5000',
 		thread: 'mixes/voyager',
 		...fieldOverrides,
 	};
@@ -110,7 +110,6 @@ function makeRequest({
 	return new Request('https://example.test/api/comments', {
 		body,
 		headers: {
-			accept: 'application/json',
 			'content-length': String(new TextEncoder().encode(body).length),
 			'content-type': 'application/x-www-form-urlencoded',
 			...headerOverrides,
@@ -204,7 +203,6 @@ describe('handleCommentSubmission', () => {
 		const request = new Request('https://example.test/api/comments', {
 			body: 'not a form',
 			headers: {
-				accept: 'application/json',
 				'content-length': '10',
 				'content-type': 'text/plain',
 			},
@@ -263,7 +261,7 @@ describe('handleCommentSubmission', () => {
 	test('rejects a form filled in under three seconds', async () => {
 		const { config } = createHarness();
 		const response = await handleCommentSubmission(
-			makeRequest({ fields: { formAge: '100' } }),
+			makeRequest({ fields: { fillTimeMs: '100' } }),
 			config,
 		);
 
@@ -353,7 +351,7 @@ describe('handleCommentSubmission', () => {
 			makeRequest({ fields: { body: 'x'.repeat(40_000) } }),
 			makeRequest({ fields: { extra: 'spam.test' } }),
 			makeRequest({ fields: { author: undefined } }),
-			makeRequest({ fields: { formAge: '100' } }),
+			makeRequest({ fields: { fillTimeMs: '100' } }),
 			makeRequest({ fields: { thread: 'mixes/no-such-mix' } }),
 			makeRequest({ fields: { parentId: 'gone' } }),
 		];
@@ -427,58 +425,6 @@ describe('handleCommentSubmission', () => {
 		expect(Object.values(comment ?? {})).not.toContain('203.0.113.7');
 	});
 
-	test('redirects a native form post back to the thread page', async () => {
-		const { config } = createHarness();
-		const response = await handleCommentSubmission(
-			makeRequest({ headers: { accept: 'text/html' } }),
-			config,
-		);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.get('location')).toBe(
-			'https://example.test/mixes/voyager/?comment=received#comments',
-		);
-	});
-
-	test('answers a native form post rejection as plain text', async () => {
-		const { config } = createHarness();
-		const response = await handleCommentSubmission(
-			makeRequest({ fields: { extra: 'spam.test' }, headers: { accept: 'text/html' } }),
-			config,
-		);
-
-		expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
-		await expect(response.text()).resolves.toBe(`${defaultMessages.invalid}\n`);
-	});
-
-	test('keeps a query the thread path already carries', async () => {
-		const { config } = createHarness({ threadPath: () => '/p/?lang=fr' });
-		const response = await handleCommentSubmission(
-			makeRequest({ headers: { accept: 'text/html' } }),
-			config,
-		);
-
-		expect(response.headers.get('location')).toBe(
-			'https://example.test/p/?lang=fr&comment=received#comments',
-		);
-	});
-
-	test('refuses a thread path off this site before storing anything', async () => {
-		silenceErrors();
-
-		for (const path of ['//evil.test/x', 'https://evil.test/x', 'mixes/voyager', '/\\evil.test']) {
-			const { config, inserted } = createHarness({ threadPath: () => path });
-			const response = await handleCommentSubmission(
-				makeRequest({ headers: { accept: 'text/html' } }),
-				config,
-			);
-
-			expect(response.status).toBe(500);
-			expect(response.headers.get('location')).toBeNull();
-			expect(inserted).toEqual([]);
-		}
-	});
-
 	test('takes comments until the thread closes, then refuses them before the challenge', async () => {
 		const closesAt = Math.floor(Date.now() / 1000) + 60;
 		const { config, inserted, verified } = createHarness({ closesAt });
@@ -550,7 +496,7 @@ describe('handleCommentSubmission', () => {
 	test('answers with the site message where one is given, and the default elsewhere', async () => {
 		const { config } = createHarness({ messages: { tooFast: 'Slow down.' } });
 		const tooFast = await handleCommentSubmission(
-			makeRequest({ fields: { formAge: '100' } }),
+			makeRequest({ fields: { fillTimeMs: '100' } }),
 			config,
 		);
 		const invalid = await handleCommentSubmission(

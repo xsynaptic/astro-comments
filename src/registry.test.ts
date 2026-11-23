@@ -76,13 +76,19 @@ describe('buildThreadRegistry', () => {
 		});
 	});
 
-	test('refuses a key two pages claim, and a key the handler would reject', () => {
+	test('refuses a key claimed with two pages or two closing times, and a key the handler would reject', () => {
 		expect(() =>
 			buildThreadRegistry([
 				{ key: 'posts/hello', path: '/hello/' },
 				{ formerKeys: ['posts/hello'], key: 'posts/goodbye', path: '/goodbye/' },
 			]),
-		).toThrow('resolves to both /hello/ and /goodbye/');
+		).toThrow('resolves to both {"path":"/hello/"} and {"path":"/goodbye/"}');
+		expect(() =>
+			buildThreadRegistry([
+				{ key: 'posts/hello', path: '/hello/' },
+				{ closesAt: 0, formerKeys: ['posts/hello'], key: 'posts/hi', path: '/hello/' },
+			]),
+		).toThrow('resolves to both');
 		expect(() => buildThreadRegistry([{ key: 'posts/en:42', path: '/hello/' }])).toThrow(
 			'not a valid key',
 		);

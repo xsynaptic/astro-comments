@@ -65,7 +65,6 @@ export class CommentsSectionElement extends BaseElement {
 		this.#connectedAt = performance.now();
 
 		this.#restoreDetails();
-		this.#showNoticeFromQuery();
 
 		for (const button of this.querySelectorAll<HTMLElement>('[data-reply]')) {
 			button.hidden = false;
@@ -160,7 +159,6 @@ export class CommentsSectionElement extends BaseElement {
 		if (event.target.closest('[data-clear-stored]')) this.#clearDetails();
 	};
 
-	// The native POST stays the fallback, so nothing is prevented until the fetch path is taken
 	#handleSubmit = (event: SubmitEvent) => {
 		this.#saveDetails();
 		event.preventDefault();
@@ -269,22 +267,12 @@ export class CommentsSectionElement extends BaseElement {
 		error.hidden = false;
 	}
 
-	// The native fallback redirects with `?comment=received`; a prerendered page cannot read it at build time
-	#showNoticeFromQuery() {
-		if (new URLSearchParams(location.search).get('comment') !== 'received') return;
-
-		this.#showReceivedNotice();
-
-		// Drop the query so a reload does not repeat the notice
-		history.replaceState(undefined, '', `${location.pathname}${location.hash}`);
-	}
-
 	#showReceivedNotice() {
 		const notice = this.querySelector<HTMLElement>('[data-comment-notice]');
 
 		if (!notice) return;
 
-		// `role="status"` announces it without stealing focus from the `#comments` fragment target
+		// `role="status"` announces it without stealing focus
 		notice.hidden = false;
 
 		// The notice sits above the comment list, which puts it off-screen for anyone who just used the form
@@ -328,7 +316,7 @@ export class CommentsSectionElement extends BaseElement {
 		this.#setSubmitDisabled(form, true);
 
 		// Elapsed time rather than a timestamp, so a visitor's wrong clock cannot fail the endpoint's time trap
-		this.#field(commentFields.formAge).value = String(
+		this.#field(commentFields.fillTimeMs).value = String(
 			Math.round(performance.now() - this.#connectedAt),
 		);
 
@@ -341,7 +329,6 @@ export class CommentsSectionElement extends BaseElement {
 		try {
 			const response = await fetch(form.action, {
 				body,
-				headers: { accept: 'application/json' },
 				method: 'POST',
 				...(signal ? { signal } : undefined),
 			});

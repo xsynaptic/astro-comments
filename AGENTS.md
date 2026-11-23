@@ -12,6 +12,7 @@ Add to this file only what an agent can't infer from the code and config.
 
 - Lefthook is the gate and there is no CI: `pnpm check` reports, `pnpm fix` autofixes then rechecks
 - `pnpm test:e2e` runs on demand, outside the gate; run it after changing anything under `src/element/` or `src/submission.ts`
+- `pnpm verify:consumer` runs on demand too: it installs the packed tarball in a scratch project and drives the bin against a local D1; run it after changing `exports`, the bin or a public type
 - Every browser entry has a brotli budget in `.size-limit.json`, measured from `src`; `pnpm size --why` shows a treemap
 - The budgets match the shipped bytes because tsdown here is rolldown with minify off; recheck that if `tsdown.config.ts` gains a `define` or a plugin
 - Browser globals are allowed only under `src/element/`; ESLint rejects them elsewhere, since the server entries run in Workers and Node

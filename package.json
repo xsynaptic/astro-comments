@@ -1,6 +1,6 @@
 {
 	"name": "@xsynaptic/astro-comments",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Static, moderated comments for Astro sites: schemas, a submission handler, rendering and a headless form element",
 	"type": "module",
 	"license": "MIT",
@@ -77,7 +77,9 @@
 	},
 	"files": [
 		"dist",
-		"migrations"
+		"migrations",
+		"src",
+		"!src/**/*.test.ts"
 	],
 	"scripts": {
 		"build": "tsdown",
@@ -85,12 +87,13 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:e2e": "pnpm build && playwright test",
+		"verify:consumer": "node verify/consumer/smoke.ts",
 		"check-types": "tsc -p tsconfig.json",
 		"lint": "eslint --max-warnings 0",
 		"fix": "lefthook run fix",
 		"check": "lefthook run check",
 		"size": "size-limit",
-		"version-packages": "changeset version",
+		"version-packages": "changeset version && pnpm install --ignore-scripts",
 		"release": "node scripts/release.ts"
 	},
 	"dependencies": {

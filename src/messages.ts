@@ -19,7 +19,8 @@ export const defaultMessages = {
 	threadMissing: 'That page does not take comments.',
 	tooFast: 'That was too fast. Please try again.',
 	tooLarge: 'That submission was too large.',
-	tooMany: 'That is a lot of comments in a short time. Please wait a few minutes and try again.',
+	tooMany:
+		'Several comments have just come from your connection. Please wait a few minutes before posting another.',
 	unexpected: 'Something went wrong here. Please try again in a moment.',
 	unreadable: 'That submission could not be read.',
 } as const satisfies CommentMessages;
