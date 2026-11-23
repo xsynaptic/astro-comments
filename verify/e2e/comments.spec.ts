@@ -10,8 +10,9 @@ const thread = 'posts/hello';
 const settledFormAge = 10_000;
 
 async function openSettledPage(page: Page): Promise<void> {
-	await page.clock.install({ time: new Date(Date.now() - settledFormAge) });
+	await page.clock.install();
 	await page.goto('/');
+	await page.clock.fastForward(settledFormAge);
 }
 
 async function fillComment(page: Page, body: string): Promise<void> {
@@ -31,8 +32,8 @@ function nativeForm(body: string, fields: Record<string, string> = {}): Record<s
 		author: 'Native',
 		body,
 		extra: '',
+		formAge: String(settledFormAge),
 		parentId: '',
-		renderedAt: String(Date.now() - settledFormAge),
 		'stub-token': 'pass',
 		thread,
 		...fields,

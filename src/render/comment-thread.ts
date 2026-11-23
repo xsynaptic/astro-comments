@@ -21,6 +21,18 @@ export interface ThreadOptions {
 	maximumDepth?: number;
 }
 
+// A thread key holds the slug a comment was written against, so a renamed page passes its former keys too
+export function gatherComments(
+	commentsByThread: ReadonlyMap<string, Array<ApprovedComment>>,
+	keys: Iterable<string>,
+): Array<ApprovedComment> {
+	const comments: Array<ApprovedComment> = [];
+
+	for (const key of keys) comments.push(...(commentsByThread.get(key) ?? []));
+
+	return comments.toSorted((left, right) => left.createdAt - right.createdAt);
+}
+
 // A reply whose parent is missing becomes a root, so a rejected parent never hides its replies
 export function buildThread(
 	comments: Array<ApprovedComment>,

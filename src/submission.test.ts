@@ -98,7 +98,7 @@ function makeRequest({
 		author: 'Reader',
 		body: 'A comment worth keeping.',
 		[challengeField]: 'token',
-		renderedAt: String(Date.now() - 5000),
+		formAge: '5000',
 		thread: 'mixes/voyager',
 		...fieldOverrides,
 	};
@@ -263,7 +263,7 @@ describe('handleCommentSubmission', () => {
 	test('rejects a form filled in under three seconds', async () => {
 		const { config } = createHarness();
 		const response = await handleCommentSubmission(
-			makeRequest({ fields: { renderedAt: String(Date.now() - 100) } }),
+			makeRequest({ fields: { formAge: '100' } }),
 			config,
 		);
 
@@ -353,7 +353,7 @@ describe('handleCommentSubmission', () => {
 			makeRequest({ fields: { body: 'x'.repeat(40_000) } }),
 			makeRequest({ fields: { extra: 'spam.test' } }),
 			makeRequest({ fields: { author: undefined } }),
-			makeRequest({ fields: { renderedAt: String(Date.now() - 100) } }),
+			makeRequest({ fields: { formAge: '100' } }),
 			makeRequest({ fields: { thread: 'mixes/no-such-mix' } }),
 			makeRequest({ fields: { parentId: 'gone' } }),
 		];
@@ -550,7 +550,7 @@ describe('handleCommentSubmission', () => {
 	test('answers with the site message where one is given, and the default elsewhere', async () => {
 		const { config } = createHarness({ messages: { tooFast: 'Slow down.' } });
 		const tooFast = await handleCommentSubmission(
-			makeRequest({ fields: { renderedAt: String(Date.now() - 100) } }),
+			makeRequest({ fields: { formAge: '100' } }),
 			config,
 		);
 		const invalid = await handleCommentSubmission(

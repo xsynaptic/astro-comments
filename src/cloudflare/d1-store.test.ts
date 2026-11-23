@@ -224,6 +224,16 @@ VALUES ('wp-2', 'mixes/voyager', 'wp-1', 'Basilisk', 'owner@example.test', 'http
 		]);
 	});
 
+	test('leaves the email hash out of approved comments when told not to publish it', async () => {
+		database.exec(`INSERT INTO comments (id, thread, author, email_hash, body, status, created_at)
+VALUES ('hashed', 'mixes/voyager', 'Reader', 'a-hash', 'Hello.', 'approved', 1577836800)`);
+
+		const store = createD1CommentStore(createBinding(), { publishEmailHash: false });
+		const [comment] = await store.listApproved();
+
+		expect(comment).not.toHaveProperty('emailHash');
+	});
+
 	test('sets the status of every id it is given, past the bound parameter cap, and counts them', async () => {
 		const ids = Array.from({ length: 150 }, (_, index) => `id-${String(index)}`);
 

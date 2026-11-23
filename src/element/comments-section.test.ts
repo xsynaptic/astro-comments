@@ -34,7 +34,7 @@ function mountSection(): HTMLFormElement {
 				<form action="/api/comments" data-comment-form hidden method="post">
 					<input name="thread" type="hidden" value="posts/a-post">
 					<input name="parentId" type="hidden" value="">
-					<input name="renderedAt" type="hidden" value="">
+					<input name="formAge" type="hidden" value="">
 					<input name="author" value="Ada">
 					<input name="authorEmail" value="">
 					<input name="authorUrl" value="">
@@ -103,13 +103,12 @@ describe('a submitted comment form', () => {
 		expect((options?.body as FormData).get('body')).toBe('A comment');
 	});
 
-	test('carries the time the section connected and no parent', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(new Date('2026-11-19T12:00:00Z'));
+	test('carries the time since the section connected and no parent', async () => {
+		vi.useFakeTimers({ toFake: ['performance'] });
 
 		const form = mountSection();
 
-		vi.setSystemTime(new Date('2026-11-19T12:05:00Z'));
+		vi.advanceTimersByTime(300_000);
 		respondWith({ ok: true });
 		submit(form);
 
@@ -117,7 +116,7 @@ describe('a submitted comment form', () => {
 			expect(fetch).toHaveBeenCalledOnce();
 		});
 
-		expect(postedField(0, 'renderedAt')).toBe(String(Date.parse('2026-11-19T12:00:00Z')));
+		expect(postedField(0, 'formAge')).toBe('300000');
 		expect(postedField(0, 'parentId')).toBe('');
 	});
 

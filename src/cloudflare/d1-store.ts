@@ -32,8 +32,7 @@ WHERE status IN (${commentStatuses.map((status) => `'${status}'`).join(', ')}) A
 
 const selectApprovedParent = `SELECT thread FROM comments WHERE id = ? AND status = 'approved'`;
 
-const selectApproved = `SELECT id, thread, parent_id, author, author_url, email_hash, is_owner, body, created_at
-FROM comments WHERE status = 'approved' ORDER BY thread, created_at`;
+const approvedColumns = 'id, thread, parent_id, author, author_url, is_owner, body, created_at';
 
 const selectPending = `SELECT ${storedColumns} FROM comments WHERE status = 'pending' ORDER BY created_at`;
 
@@ -54,7 +53,18 @@ const countRowSchema = z.object({ total: z.number() });
 
 const parentRowSchema = z.object({ thread: z.string() });
 
-export function createD1CommentStore(database: D1Binding): CommentModerationStore & CommentStore {
+export interface D1CommentStoreOptions {
+	// The hash is an unsalted SHA-256, so anyone holding an address can test it against a published one
+	publishEmailHash?: boolean;
+}
+
+export function createD1CommentStore(
+	database: D1Binding,
+	{ publishEmailHash = true }: D1CommentStoreOptions = {},
+): CommentModerationStore & CommentStore {
+	const selectApproved = `SELECT ${approvedColumns}${publishEmailHash ? ', email_hash' : ''}
+FROM comments WHERE status = 'approved' ORDER BY thread, created_at`;
+
 	return {
 		async countRecentComments(ipHash, since) {
 			const row = await database.prepare(countRecent).bind(since, ipHash).first();

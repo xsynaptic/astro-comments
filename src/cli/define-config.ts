@@ -10,12 +10,14 @@ export const commentsConfigSchema = z.object({
 			databaseId: z.string().optional(),
 		}),
 	}),
+	ignoredOrphans: z.array(z.string()).default([]),
 	ownerEmails: z
 		.array(z.string().optional())
 		.default([])
 		.transform((emails) =>
 			emails.filter((email): email is string => email !== undefined && email !== ''),
 		),
+	publishEmailHash: z.boolean().default(true),
 	snapshotDirectory: z.string(),
 	threadRegistry: z.string(),
 });

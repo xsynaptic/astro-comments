@@ -35,7 +35,7 @@ type Submission = Omit<z.infer<typeof submissionSchema>, 'challengeToken'> & {
 	challengeToken: string;
 };
 
-// The form is rendered into a static page, so the client sets this on load; a build-time value would always pass
+// The client measures the age itself, so its clock is never compared with this one
 const minimumFormAgeMs = 3000;
 
 // `request.formData()` parses the whole body before the schema's 8000-character cap can apply
@@ -53,8 +53,8 @@ const submissionSchema = z.object({
 	authorUrl: z.httpUrl().max(200).optional(),
 	body: z.string().min(2).max(8000),
 	challengeToken: z.string().max(2048).optional(),
+	formAge: z.coerce.number().int().nonnegative(),
 	parentId: z.string().min(1).max(200).optional(),
-	renderedAt: z.coerce.number().int().positive(),
 	thread: z.string().max(maximumThreadKeyLength).regex(threadKeyPattern),
 });
 
@@ -218,15 +218,14 @@ async function readSubmission(
 		authorUrl: readField(form, commentFields.authorUrl),
 		body: readField(form, commentFields.body),
 		challengeToken: readField(form, challengeField),
+		formAge: readField(form, commentFields.formAge),
 		parentId: readField(form, commentFields.parentId),
-		renderedAt: readField(form, commentFields.renderedAt),
 		thread: readField(form, commentFields.thread),
 	});
 
 	if (!parsed.success) return reject(request, 400, messages.invalid);
 
-	if (Date.now() - parsed.data.renderedAt < minimumFormAgeMs)
-		return reject(request, 400, messages.tooFast);
+	if (parsed.data.formAge < minimumFormAgeMs) return reject(request, 400, messages.tooFast);
 
 	const { challengeToken, ...fields } = parsed.data;
 

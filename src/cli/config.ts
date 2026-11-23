@@ -44,15 +44,23 @@ export async function openCommentStore(
 	config: CommentsConfig,
 	target: SnapshotTarget,
 ): Promise<CommentStoreConnection> {
+	const { publishEmailHash } = config;
+
 	if (target === 'local') {
 		const connection = await openD1LocalBinding(config.d1.local);
 
-		return { dispose: connection.dispose, store: createD1CommentStore(connection.binding) };
+		return {
+			dispose: connection.dispose,
+			store: createD1CommentStore(connection.binding, { publishEmailHash }),
+		};
 	}
 
 	const binding = createD1HttpBinding(toHttpOptions(config.d1.remote));
 
-	return { dispose: () => Promise.resolve(), store: createD1CommentStore(binding) };
+	return {
+		dispose: () => Promise.resolve(),
+		store: createD1CommentStore(binding, { publishEmailHash }),
+	};
 }
 
 function toHttpOptions({

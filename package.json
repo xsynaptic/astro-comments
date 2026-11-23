@@ -1,6 +1,6 @@
 {
 	"name": "@xsynaptic/astro-comments",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Static, moderated comments for Astro sites: schemas, a submission handler, rendering and a headless form element",
 	"type": "module",
 	"license": "MIT",

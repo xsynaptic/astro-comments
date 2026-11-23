@@ -29,6 +29,7 @@ let sectionOptions: CommentsSectionOptions | undefined;
 
 export class CommentsSectionElement extends BaseElement {
 	#abortController: AbortController | undefined;
+	#connectedAt = 0;
 	#memory: FormMemory;
 	#replyOrigin: HTMLElement | undefined;
 	#widget: CommentChallengeWidget;
@@ -61,8 +62,7 @@ export class CommentsSectionElement extends BaseElement {
 
 		const { signal } = this.#abortController;
 
-		// The page is prerendered, so a build-time value would make the endpoint's time trap useless
-		this.#field(commentFields.renderedAt).value = String(Date.now());
+		this.#connectedAt = performance.now();
 
 		this.#restoreDetails();
 		this.#showNoticeFromQuery();
@@ -326,6 +326,11 @@ export class CommentsSectionElement extends BaseElement {
 
 		this.#toggle('[data-comment-error]', false);
 		this.#setSubmitDisabled(form, true);
+
+		// Elapsed time rather than a timestamp, so a visitor's wrong clock cannot fail the endpoint's time trap
+		this.#field(commentFields.formAge).value = String(
+			Math.round(performance.now() - this.#connectedAt),
+		);
 
 		const body = new FormData(form);
 		const accepted = {

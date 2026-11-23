@@ -16,13 +16,15 @@ export interface OrphanedThread {
 export async function findOrphanedThreads(
 	store: CommentModerationStore,
 	registryFile: string,
+	ignoredThreads: ReadonlyArray<string> = [],
 ): Promise<Array<OrphanedThread>> {
 	const registry = threadRegistrySchema.parse(JSON.parse(await readFile(registryFile, 'utf8')));
 	const [approved, pending] = await Promise.all([store.listApproved(), store.listPending()]);
+	const ignored = new Set(ignoredThreads);
 	const orphans = new Map<string, OrphanedThread>();
 
 	function count(thread: string, status: 'approved' | 'pending'): void {
-		if (Object.hasOwn(registry, thread)) return;
+		if (Object.hasOwn(registry, thread) || ignored.has(thread)) return;
 
 		const orphan = orphans.get(thread) ?? { approved: 0, pending: 0, thread };
 

@@ -1,7 +1,18 @@
 export { defaultMessages } from '#messages.ts';
 export type { CommentMessages } from '#messages.ts';
-export { createThreadResolver, isThreadOpen, threadRegistrySchema } from '#registry.ts';
-export type { ThreadPage, ThreadRegistry, ThreadResolver } from '#registry.ts';
+export {
+	buildThreadRegistry,
+	createThreadResolver,
+	isThreadOpen,
+	threadRegistrySchema,
+} from '#registry.ts';
+export type {
+	ThreadEntry,
+	ThreadPage,
+	ThreadRegistry,
+	ThreadResolver,
+	ThreadResolverOptions,
+} from '#registry.ts';
 export { approvedCommentSchema } from '#schemas.ts';
 export type { ApprovedComment } from '#schemas.ts';
 export { commentStatuses } from '#store.ts';

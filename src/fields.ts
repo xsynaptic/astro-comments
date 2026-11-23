@@ -3,8 +3,8 @@ export const commentFields = {
 	authorEmail: 'authorEmail',
 	authorUrl: 'authorUrl',
 	body: 'body',
+	formAge: 'formAge',
 	honeypot: 'extra',
 	parentId: 'parentId',
-	renderedAt: 'renderedAt',
 	thread: 'thread',
 } as const;

@@ -72,7 +72,7 @@ export async function moderateComments(
 
 export async function reportOrphans(config: CommentsConfig, target: SnapshotTarget): Promise<void> {
 	const orphans = await withStore(config, target, (store) =>
-		findOrphanedThreads(store, config.threadRegistry),
+		findOrphanedThreads(store, config.threadRegistry, config.ignoredOrphans),
 	);
 
 	printOrphanedThreads(orphans);

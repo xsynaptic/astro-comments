@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { createThreadResolver, isThreadOpen } from '#registry.ts';
+import { buildThreadRegistry, createThreadResolver, isThreadOpen } from '#registry.ts';
 
 describe('the thread resolver', () => {
 	test('loads the registry once and answers each key, former keys included', async () => {
@@ -27,6 +27,24 @@ describe('the thread resolver', () => {
 		await expect(resolve('constructor')).resolves.toBeUndefined();
 	});
 
+	test('loads again once the registry is older than its maximum age', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+
+		const load = vi
+			.fn<() => Promise<unknown>>()
+			.mockResolvedValueOnce({})
+			.mockResolvedValue({ 'posts/new': { path: '/new/' } });
+		const resolve = createThreadResolver(load, { maxAgeSeconds: 60 });
+
+		await expect(resolve('posts/new')).resolves.toBeUndefined();
+		vi.advanceTimersByTime(59_000);
+		await expect(resolve('posts/new')).resolves.toBeUndefined();
+		vi.advanceTimersByTime(1000);
+		await expect(resolve('posts/new')).resolves.toEqual({ path: '/new/' });
+
+		vi.useRealTimers();
+	});
+
 	test('tries the load again after a failure', async () => {
 		const load = vi
 			.fn<() => Promise<unknown>>()
@@ -36,6 +54,38 @@ describe('the thread resolver', () => {
 
 		await expect(resolve('mixes/voyager')).rejects.toThrow('unreachable');
 		await expect(resolve('mixes/voyager')).resolves.toEqual({ path: '/mixes/voyager/' });
+	});
+});
+
+describe('buildThreadRegistry', () => {
+	test("registers each former key under its page's path and closing time", () => {
+		const registry = buildThreadRegistry([
+			{
+				closesAt: 0,
+				formerKeys: ['mixes/old-slug'],
+				key: 'mixes/voyager',
+				path: '/mixes/voyager/',
+			},
+			{ key: 'posts/hello', path: '/hello/' },
+		]);
+
+		expect(registry).toEqual({
+			'mixes/old-slug': { closesAt: 0, path: '/mixes/voyager/' },
+			'mixes/voyager': { closesAt: 0, path: '/mixes/voyager/' },
+			'posts/hello': { path: '/hello/' },
+		});
+	});
+
+	test('refuses a key two pages claim, and a key the handler would reject', () => {
+		expect(() =>
+			buildThreadRegistry([
+				{ key: 'posts/hello', path: '/hello/' },
+				{ formerKeys: ['posts/hello'], key: 'posts/goodbye', path: '/goodbye/' },
+			]),
+		).toThrow('resolves to both /hello/ and /goodbye/');
+		expect(() => buildThreadRegistry([{ key: 'posts/en:42', path: '/hello/' }])).toThrow(
+			'not a valid key',
+		);
 	});
 });
 

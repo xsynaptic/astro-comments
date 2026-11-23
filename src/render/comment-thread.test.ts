@@ -4,7 +4,7 @@ import { describe, expect } from 'vitest';
 import type { CommentNode } from '#render/comment-thread.ts';
 import type { ApprovedComment } from '#schemas.ts';
 
-import { buildThread } from '#render/comment-thread.ts';
+import { buildThread, gatherComments } from '#render/comment-thread.ts';
 
 interface CommentFixture {
 	emailHash?: string;
@@ -143,4 +143,18 @@ describe('buildThread', () => {
 			);
 		},
 	);
+});
+
+describe('gatherComments', () => {
+	test("merges a page's current and former threads in date order, skipping a key with none", () => {
+		const comments = toComments([{ id: 'first' }, { id: 'second' }, { id: 'third' }]);
+		const commentsByThread = new Map([
+			['posts/new', comments.slice(1, 2)],
+			['posts/old', comments.filter((_, index) => index !== 1)],
+		]);
+
+		expect(gatherComments(commentsByThread, ['posts/new', 'posts/old', 'posts/older'])).toEqual(
+			comments,
+		);
+	});
 });
