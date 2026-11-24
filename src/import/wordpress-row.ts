@@ -1,5 +1,6 @@
 import type { CommentStatus } from '#store.ts';
 
+import { toCommentBody, toDisplayName } from '#comment-text.ts';
 import { htmlToCommentMarkdown } from '#import/html-to-markdown.ts';
 import { sha256 } from '#sha256.ts';
 
@@ -55,8 +56,8 @@ export async function toImportedComment(
 		throw new TypeError(`Comment ${String(row.comment_ID)} has no GMT date`);
 
 	const comment: ImportedComment = {
-		author: row.comment_author.trim(),
-		body: htmlToCommentMarkdown(row.comment_content),
+		author: toDisplayName(row.comment_author),
+		body: toCommentBody(htmlToCommentMarkdown(row.comment_content)),
 		createdAt,
 		id: `wp-${String(row.comment_ID)}`,
 		isOwner,

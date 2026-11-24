@@ -215,7 +215,9 @@ describe('moderation', () => {
 		database.exec(`INSERT INTO comments (id, thread, parent_id, author, author_email, author_url, email_hash, is_owner, body, status, source, created_at, ip_hash)
 VALUES ('wp-2', 'mixes/voyager', 'wp-1', 'Basilisk', 'owner@example.test', 'https://example.test/', 'a-hash', 1, 'Thanks.', 'approved', 'wordpress', 1577836800, 'ip-hash')`);
 
-		await expect(createD1CommentStore(createBinding()).listApproved()).resolves.toEqual([
+		await expect(
+			createD1CommentStore(createBinding(), { publishEmailHash: true }).listApproved(),
+		).resolves.toEqual([
 			{
 				author: 'Basilisk',
 				authorUrl: 'https://example.test/',
@@ -230,12 +232,11 @@ VALUES ('wp-2', 'mixes/voyager', 'wp-1', 'Basilisk', 'owner@example.test', 'http
 		]);
 	});
 
-	test('leaves the email hash out of approved comments when told not to publish it', async () => {
+	test('leaves the email hash out of approved comments unless told to publish it', async () => {
 		database.exec(`INSERT INTO comments (id, thread, author, email_hash, body, status, created_at)
 VALUES ('hashed', 'mixes/voyager', 'Reader', 'a-hash', 'Hello.', 'approved', 1577836800)`);
 
-		const store = createD1CommentStore(createBinding(), { publishEmailHash: false });
-		const [comment] = await store.listApproved();
+		const [comment] = await createD1CommentStore(createBinding()).listApproved();
 
 		expect(comment).not.toHaveProperty('emailHash');
 	});

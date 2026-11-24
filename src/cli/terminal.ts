@@ -8,11 +8,19 @@ const interrupt = '\u{3}';
 
 const bodyWidth = 76;
 
-const unprintable = /(?!\n)[\p{Cc}\p{Bidi_Control}]/gu;
+const unprintable = /(?![\t\n])\p{Cc}/gu;
 
-// Visitor text could otherwise rewrite the screen or reorder what the moderator reads
+const bidiControl = /\p{Bidi_Control}/gu;
+
+// Escapes could rewrite the screen; a bidi control is named rather than dropped, since the page renders it
 export function toPrintable(text: string): string {
-	return text.replaceAll(unprintable, '');
+	return text
+		.replaceAll(unprintable, '')
+		.replaceAll(bidiControl, (control) => `⟨U+${toCodePoint(control)}⟩`);
+}
+
+function toCodePoint(character: string): string {
+	return (character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0');
 }
 
 export function printComment(stored: StoredComment, marker: string): void {

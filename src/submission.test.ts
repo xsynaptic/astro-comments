@@ -112,14 +112,11 @@ function makeRequest({
 		headers: {
 			'content-length': String(new TextEncoder().encode(body).length),
 			'content-type': 'application/x-www-form-urlencoded',
+			'x-client-ip': '203.0.113.7',
 			...headerOverrides,
 		},
 		method: 'POST',
 	});
-}
-
-function fromVisitor(): Request {
-	return makeRequest({ headers: { 'x-client-ip': '203.0.113.7' } });
 }
 
 beforeEach(() => {
@@ -164,6 +161,24 @@ describe('handleCommentSubmission', () => {
 		expect(inserted).toEqual([]);
 	});
 
+	test('refuses a request with no client IP rather than letting it past the rate limit', async () => {
+		const logged = silenceErrors();
+		const { config, inserted, verified } = createHarness();
+		const request = makeRequest();
+
+		request.headers.delete('x-client-ip');
+
+		const response = await handleCommentSubmission(request, config);
+
+		expect(response.status).toBe(500);
+		await expect(response.json()).resolves.toEqual({ message: defaultMessages.unexpected });
+		expect(logged).toHaveBeenCalledWith(
+			expect.objectContaining({ message: expect.stringContaining('client IP') as unknown }),
+		);
+		expect(verified).toEqual([]);
+		expect(inserted).toEqual([]);
+	});
+
 	test('logs a store failure and answers 500', async () => {
 		const logged = silenceErrors();
 		const { config } = createHarness();
@@ -205,6 +220,7 @@ describe('handleCommentSubmission', () => {
 			headers: {
 				'content-length': '10',
 				'content-type': 'text/plain',
+				'x-client-ip': '203.0.113.7',
 			},
 			method: 'POST',
 		});
@@ -246,7 +262,7 @@ describe('handleCommentSubmission', () => {
 		expect(resolved).toEqual([]);
 	});
 
-	test('answers a missing challenge token with the challenge message, without verifying', async () => {
+	test('answers a missing challenge token with the pending message, without verifying', async () => {
 		const { config, verified } = createHarness();
 		const response = await handleCommentSubmission(
 			makeRequest({ fields: { [challengeField]: undefined } }),
@@ -254,7 +270,7 @@ describe('handleCommentSubmission', () => {
 		);
 
 		expect(response.status).toBe(403);
-		await expect(response.json()).resolves.toEqual({ message: defaultMessages.challenge });
+		await expect(response.json()).resolves.toEqual({ message: defaultMessages.challengePending });
 		expect(verified).toEqual([]);
 	});
 
@@ -369,16 +385,9 @@ describe('handleCommentSubmission', () => {
 	test('hands the token from the challenge field and the client IP to the challenge', async () => {
 		const { config, verified } = createHarness();
 
-		await handleCommentSubmission(
-			makeRequest({ headers: { 'x-client-ip': '203.0.113.7' } }),
-			config,
-		);
 		await handleCommentSubmission(makeRequest(), config);
 
-		expect(verified).toEqual([
-			['token', '203.0.113.7'],
-			['token', undefined],
-		]);
+		expect(verified).toEqual([['token', '203.0.113.7']]);
 	});
 
 	test('stores a new comment on its thread, with no key for an absent field, and answers 201', async () => {
@@ -392,9 +401,44 @@ describe('handleCommentSubmission', () => {
 				body: 'A comment worth keeping.',
 				createdAt: Math.floor(Date.now() / 1000),
 				id: expect.stringMatching(/^[a-z2-7]{10}$/) as unknown,
+				ipHash: saltedIpHash,
 				thread: 'mixes/voyager',
 			},
 		]);
+	});
+
+	test('stores the name without control or bidi characters, its whitespace folded', async () => {
+		const { config, inserted } = createHarness();
+
+		await handleCommentSubmission(
+			makeRequest({ fields: { author: 'Ann\u{202E}\u{7}\tLee\u{A0}\u{A0}Ho\u{2066}' } }),
+			config,
+		);
+
+		expect(inserted.at(-1)?.author).toBe('Ann Lee Ho');
+	});
+
+	test('rejects a name with nothing left once control and bidi characters go', async () => {
+		const { config, inserted } = createHarness();
+		const response = await handleCommentSubmission(
+			makeRequest({ fields: { author: '\u{202E}\u{1}\u{200E}' } }),
+			config,
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({ message: defaultMessages.invalid });
+		expect(inserted).toEqual([]);
+	});
+
+	test('stores the body without control characters, keeping its tabs and line breaks', async () => {
+		const { config, inserted } = createHarness();
+
+		await handleCommentSubmission(
+			makeRequest({ fields: { body: 'First\u{1}\tline\r\nsecond\u{85} line' } }),
+			config,
+		);
+
+		expect(inserted.at(-1)?.body).toBe('First\tline\nsecond line');
 	});
 
 	test('stores the email as submitted, plus a hash of its lowercased form', async () => {
@@ -447,10 +491,10 @@ describe('handleCommentSubmission', () => {
 		const { config, inserted, verified } = createHarness();
 
 		for (let count = 0; count < 5; count += 1) {
-			await handleCommentSubmission(fromVisitor(), config);
+			await handleCommentSubmission(makeRequest(), config);
 		}
 
-		const refused = await handleCommentSubmission(fromVisitor(), config);
+		const refused = await handleCommentSubmission(makeRequest(), config);
 
 		expect(refused.status).toBe(429);
 		expect(refused.headers.get('retry-after')).toBe('600');
@@ -459,24 +503,41 @@ describe('handleCommentSubmission', () => {
 
 		vi.setSystemTime(Date.now() + 601_000);
 
-		const later = await handleCommentSubmission(fromVisitor(), config);
+		const later = await handleCommentSubmission(makeRequest(), config);
 
 		expect(later.status).toBe(201);
 		expect(inserted).toHaveLength(6);
 	});
 
-	test('counts each IP on its own, and never limits a request with no IP', async () => {
+	test('counts an IPv6 /64 as one network, and an IPv4-mapped address as its IPv4 client', async () => {
+		const { config } = createHarness({ rateLimit: { maximumComments: 1, windowSeconds: 60 } });
+		const statuses: Array<number> = [];
+
+		for (const address of [
+			'2001:db8:1:2::1',
+			'2001:db8:1:2::beef',
+			'2001:db8:1:3::1',
+			'203.0.113.7',
+			'::ffff:203.0.113.7',
+			'::ffff:198.51.100.2',
+		]) {
+			const response = await handleCommentSubmission(
+				makeRequest({ headers: { 'x-client-ip': address } }),
+				config,
+			);
+
+			statuses.push(response.status);
+		}
+
+		expect(statuses).toEqual([201, 429, 201, 201, 429, 201]);
+	});
+
+	test('counts each IP on its own', async () => {
 		const { config } = createHarness({ rateLimit: { maximumComments: 1, windowSeconds: 60 } });
 
-		await handleCommentSubmission(
-			makeRequest({ headers: { 'x-client-ip': '203.0.113.7' } }),
-			config,
-		);
+		await handleCommentSubmission(makeRequest(), config);
 
-		const again = await handleCommentSubmission(
-			makeRequest({ headers: { 'x-client-ip': '203.0.113.7' } }),
-			config,
-		);
+		const again = await handleCommentSubmission(makeRequest(), config);
 		const other = await handleCommentSubmission(
 			makeRequest({ headers: { 'x-client-ip': '198.51.100.2' } }),
 			config,
@@ -485,12 +546,6 @@ describe('handleCommentSubmission', () => {
 		expect(again.status).toBe(429);
 		expect(again.headers.get('retry-after')).toBe('60');
 		expect(other.status).toBe(201);
-
-		for (let count = 0; count < 3; count += 1) {
-			const anonymous = await handleCommentSubmission(makeRequest(), config);
-
-			expect(anonymous.status).toBe(201);
-		}
 	});
 
 	test('answers with the site message where one is given, and the default elsewhere', async () => {

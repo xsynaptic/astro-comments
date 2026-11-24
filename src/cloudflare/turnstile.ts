@@ -19,8 +19,7 @@ export function createTurnstileChallenge(
 
 			body.append('secret', secretKey);
 			body.append('response', token);
-
-			if (remoteIp) body.append('remoteip', remoteIp);
+			body.append('remoteip', remoteIp);
 
 			// A Worker waits on a hung fetch for as long as the visitor stays connected
 			const response = await fetch(siteverifyUrl, {

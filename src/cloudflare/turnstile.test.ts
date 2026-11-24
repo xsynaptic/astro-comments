@@ -27,13 +27,13 @@ describe('the Turnstile challenge', () => {
 
 		fetchSpy.mockImplementation(() => Promise.resolve(Response.json({ success: false })));
 
-		expect(await challenge.verify('token', undefined)).toBe(false);
+		expect(await challenge.verify('token', '203.0.113.7')).toBe(false);
 	});
 
 	test('throws on an outage rather than failing the visitor', async () => {
 		stubSiteverify(() => Promise.resolve(new Response(undefined, { status: 503 })));
 
-		await expect(createTurnstileChallenge('secret').verify('token', undefined)).rejects.toThrow(
+		await expect(createTurnstileChallenge('secret').verify('token', '203.0.113.7')).rejects.toThrow(
 			'503',
 		);
 	});
@@ -51,7 +51,7 @@ describe('the Turnstile challenge', () => {
 		);
 
 		await expect(
-			createTurnstileChallenge('secret', { timeoutMs: 10 }).verify('token', undefined),
+			createTurnstileChallenge('secret', { timeoutMs: 10 }).verify('token', '203.0.113.7'),
 		).rejects.toThrow(/timed out|aborted/i);
 	});
 });

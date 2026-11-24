@@ -60,7 +60,7 @@ export interface D1CommentStoreOptions {
 
 export function createD1CommentStore(
 	database: D1Binding,
-	{ publishEmailHash = true }: D1CommentStoreOptions = {},
+	{ publishEmailHash = false }: D1CommentStoreOptions = {},
 ): CommentModerationStore & CommentStore {
 	// `id` breaks ties so a row keeps its line in the snapshot from one pull to the next
 	const selectApproved = `SELECT ${approvedColumns}${publishEmailHash ? ', email_hash' : ''}

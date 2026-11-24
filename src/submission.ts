@@ -4,15 +4,17 @@ import type { CommentMessages } from '#messages.ts';
 import type { ThreadPage } from '#registry.ts';
 import type { CommentStore, NewComment } from '#store.ts';
 
+import { toCommentBody, toDisplayName } from '#comment-text.ts';
 import { commentFields } from '#fields.ts';
 import { defaultMessages } from '#messages.ts';
+import { toNetworkKey } from '#network-key.ts';
 import { isThreadOpen } from '#registry.ts';
 import { maximumThreadKeyLength, threadKeyPattern } from '#schemas.ts';
 import { sha256 } from '#sha256.ts';
 
 export interface CommentChallenge {
 	tokenField: string;
-	verify: (token: string, remoteIp: string | undefined) => Promise<boolean>;
+	verify: (token: string, remoteIp: string) => Promise<boolean>;
 }
 
 export interface CommentRateLimit {
@@ -48,10 +50,10 @@ const commentIdLength = 10;
 const defaultRateLimit = { maximumComments: 5, windowSeconds: 600 } as const;
 
 const submissionSchema = z.object({
-	author: z.string().min(1).max(80),
+	author: z.string().overwrite(toDisplayName).min(1).max(80),
 	authorEmail: z.email().max(200).optional(),
 	authorUrl: z.httpUrl().max(200).optional(),
-	body: z.string().min(2).max(8000),
+	body: z.string().overwrite(toCommentBody).min(2).max(8000),
 	challengeToken: z.string().max(2048).optional(),
 	fillTimeMs: z.coerce.number().int().nonnegative(),
 	parentId: z.string().min(1).max(200).optional(),
@@ -130,6 +132,11 @@ async function processSubmission(
 	// A falsy salt hashes every IP against a constant, which is brute-forceable
 	if (!config.ipSalt) throw new Error('The comment IP salt is not set');
 
+	const remoteIp = config.getClientIp(request);
+
+	if (!remoteIp)
+		throw new Error('The client IP is missing, so the rate limit cannot tell visitors apart');
+
 	const submission = await readSubmission(request, config.challenge.tokenField, messages);
 
 	if (submission instanceof Response) return submission;
@@ -143,12 +150,11 @@ async function processSubmission(
 	if (!(await isValidParent(submission, page.path, { config, request })))
 		return reject(400, messages.parentMissing);
 
-	const remoteIp = config.getClientIp(request);
-	const ipHash = remoteIp ? await sha256(`${config.ipSalt}${remoteIp}`) : undefined;
+	const ipHash = await sha256(`${config.ipSalt}${toNetworkKey(remoteIp)}`);
 	const rateLimit = { ...defaultRateLimit, ...config.rateLimit };
 
 	// Counts stored comments rather than attempts, so a failed challenge spends no one's allowance and this can run first
-	if (ipHash !== undefined && (await isOverRateLimit(config.store, ipHash, rateLimit))) {
+	if (await isOverRateLimit(config.store, ipHash, rateLimit)) {
 		return reject(429, messages.tooMany, {
 			'retry-after': String(rateLimit.windowSeconds),
 		});
@@ -215,8 +221,7 @@ async function readSubmission(
 
 	const { challengeToken, ...fields } = parsed.data;
 
-	// Usually a widget that never finished or never loaded, which the challenge message explains better than `invalid`
-	if (challengeToken === undefined) return reject(403, messages.challenge);
+	if (challengeToken === undefined) return reject(403, messages.challengePending);
 
 	return { ...fields, challengeToken };
 }
@@ -225,15 +230,13 @@ function reject(status: number, message: string, headers: Record<string, string>
 	return Response.json({ message }, { headers, status });
 }
 
-async function toNewComment(
-	submission: Submission,
-	ipHash: string | undefined,
-): Promise<NewComment> {
+async function toNewComment(submission: Submission, ipHash: string): Promise<NewComment> {
 	const comment: NewComment = {
 		author: submission.author,
 		body: submission.body,
 		createdAt: Math.floor(Date.now() / 1000),
 		id: createCommentId(),
+		ipHash,
 		thread: submission.thread,
 	};
 
@@ -245,8 +248,6 @@ async function toNewComment(
 	if (submission.authorUrl !== undefined) comment.authorUrl = submission.authorUrl;
 
 	if (submission.parentId !== undefined) comment.parentId = submission.parentId;
-
-	if (ipHash !== undefined) comment.ipHash = ipHash;
 
 	return comment;
 }

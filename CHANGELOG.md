@@ -1,5 +1,11 @@
 # @xsynaptic/astro-comments
 
+## 0.5.0
+
+### Minor Changes
+
+- `publishEmailHash` defaults to `false`; the handler refuses a request with no client IP, counts an IPv6 client by its /64, strips control characters from names and bodies and bidi controls from names, as the WordPress importer now does, and answers a missing challenge token with `challengePending`; the CLI shows a bidi control as `⟨U+202E⟩`
+
 ## 0.4.0
 
 ### Minor Changes

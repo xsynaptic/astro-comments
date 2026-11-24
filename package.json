@@ -1,7 +1,7 @@
 {
 	"name": "@xsynaptic/astro-comments",
-	"version": "0.4.0",
-	"description": "Static, moderated comments for Astro sites: schemas, a submission handler, rendering and a headless form element",
+	"version": "0.5.0",
+	"description": "Static, moderated comments for Astro sites: a submission handler with pluggable storage and spam checks, build-time rendering, and a headless form element",
 	"type": "module",
 	"license": "MIT",
 	"author": "Alexander Synaptic <x@synapticism.com>",
@@ -19,7 +19,9 @@
 		"comments",
 		"custom-element",
 		"moderation",
-		"turnstile"
+		"static-comments",
+		"turnstile",
+		"withastro"
 	],
 	"packageManager": "pnpm@12.21.0",
 	"engines": {

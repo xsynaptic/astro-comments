@@ -21,7 +21,7 @@ export const commentsConfigSchema = z.object({
 				),
 		)
 		.default({}),
-	publishEmailHash: z.boolean().default(true),
+	publishEmailHash: z.boolean().default(false),
 	snapshotDirectory: z.string(),
 	threadRegistry: z.string(),
 });

@@ -1,5 +1,6 @@
 export interface CommentMessages {
 	challenge: string;
+	challengePending: string;
 	closed: string;
 	invalid: string;
 	parentMissing: string;
@@ -13,6 +14,7 @@ export interface CommentMessages {
 
 export const defaultMessages = {
 	challenge: 'The challenge did not pass. Please reload the page and try again.',
+	challengePending: 'The challenge has not finished yet. Please wait a moment and try again.',
 	closed: 'This page no longer takes comments.',
 	invalid: 'That submission was not valid.',
 	parentMissing: 'That reply target does not exist.',

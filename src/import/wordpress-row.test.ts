@@ -37,6 +37,15 @@ describe('toImportedComment', () => {
 		});
 	});
 
+	test('cleans the name and body as the submission handler does', async () => {
+		const imported = await toImportedComment(
+			row({ comment_author: 'Read\u{202E}er\u{7}', comment_content: 'Fine\u{1} track.' }),
+			{ isOwner: false, thread: 'mixes/voyager' },
+		);
+
+		expect(imported).toMatchObject({ author: 'Reader', body: 'Fine track.' });
+	});
+
 	test('links a reply to its parent and hashes the trimmed, lowercased email', async () => {
 		const comment = await toImportedComment(
 			row({
