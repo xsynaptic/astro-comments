@@ -1,6 +1,8 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+
+import type { D1LocalOptions } from '#cloudflare/d1-local-binding.ts';
 
 const initialMigration = '0000-initial';
 
@@ -17,7 +19,9 @@ const createsCommentsTable = /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?["'`[]
 
 // Named as `wrangler d1 migrations create` names one
 export async function writeSchemaMigration(migrationsDirectory: string): Promise<string> {
-	const existing = await readMigrationsDirectory(migrationsDirectory);
+	await mkdir(migrationsDirectory, { recursive: true });
+
+	const existing = await readdir(migrationsDirectory);
 
 	for (const name of existing) {
 		const filePath = path.join(migrationsDirectory, name);
@@ -38,17 +42,15 @@ export async function writeSchemaMigration(migrationsDirectory: string): Promise
 	return filePath;
 }
 
-// Not created when missing, since a mistyped path would start a migration history wrangler never reads
-async function readMigrationsDirectory(migrationsDirectory: string): Promise<Array<string>> {
-	try {
-		return await readdir(migrationsDirectory);
-	} catch (error) {
-		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-			throw new Error(`${migrationsDirectory} does not exist; pass the D1 migrations_dir`, {
-				cause: error,
-			});
-		}
+export async function resolveMigrationsDirectory({
+	binding,
+	configPath,
+}: D1LocalOptions): Promise<string> {
+	const { unstable_readConfig } = await import('wrangler');
+	const config = unstable_readConfig({ config: configPath }, { hideWarnings: true });
+	const database = config.d1_databases.find((entry) => entry.binding === binding);
 
-		throw error;
-	}
+	if (!database) throw new Error(`The wrangler config has no D1 binding named ${binding}`);
+
+	return path.resolve(path.dirname(configPath), database.migrations_dir ?? 'migrations');
 }

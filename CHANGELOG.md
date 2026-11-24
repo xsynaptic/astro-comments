@@ -1,5 +1,15 @@
 # @xsynaptic/astro-comments
 
+## 0.4.0
+
+### Minor Changes
+
+- The config's `ownerEmails` becomes `owners`, mapping an owner id to its emails, and a registry entry's `owners` names the ids that count on its page; the snapshot writes one row per line, ordered by thread, date and id; `astro-comments schema` takes no directory, writing to the D1 binding's `migrations_dir` from the wrangler config and creating it when missing
+
+### Patch Changes
+
+- `--local` keeps wrangler's secrets notice off stdout, so `pending --json --local` prints JSON alone, and never loads the site's `.env` into the local proxy as Worker secrets
+
 ## 0.3.0
 
 ### Minor Changes

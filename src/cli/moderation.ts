@@ -1,3 +1,4 @@
+import type { ThreadResolver } from '#registry.ts';
 import type { CommentModerationStore, CommentStatus, StoredComment } from '#store.ts';
 
 export type Decision = Exclude<CommentStatus, 'pending'>;
@@ -13,14 +14,41 @@ export interface DecisionReport {
 	refused: Array<{ id: string; reason: string }>;
 }
 
-// The form has no login, so a matching email only marks a candidate; approving it is what vouches
-export function createOwnerCheck(
-	ownerEmails: ReadonlyArray<string>,
-): (comment: StoredComment) => boolean {
-	const owners = new Set(ownerEmails.map((email) => normalizeEmail(email)));
+export type OwnerCheck = (comment: StoredComment) => Promise<boolean>;
 
-	return (comment) =>
-		comment.authorEmail !== undefined && owners.has(normalizeEmail(comment.authorEmail));
+// The form has no login, so a matching email only marks a candidate; approving it is what vouches
+// The registry is read only for an email some owner holds, so most queues never need a build
+export function createOwnerCheck(
+	owners: Readonly<Record<string, ReadonlyArray<string>>>,
+	resolveThread: ThreadResolver,
+): OwnerCheck {
+	const ownerIdsByEmail = new Map<string, Set<string>>();
+
+	for (const [ownerId, emails] of Object.entries(owners)) {
+		for (const email of emails) {
+			const normalized = normalizeEmail(email);
+			const ownerIds = ownerIdsByEmail.get(normalized) ?? new Set<string>();
+
+			ownerIds.add(ownerId);
+			ownerIdsByEmail.set(normalized, ownerIds);
+		}
+	}
+
+	return async (comment) => {
+		if (comment.authorEmail === undefined) return false;
+
+		const ownerIds = ownerIdsByEmail.get(normalizeEmail(comment.authorEmail));
+
+		if (ownerIds === undefined) return false;
+
+		const page = await resolveThread(comment.thread);
+
+		if (page === undefined) return false;
+
+		if (page.owners === undefined) return true;
+
+		return page.owners.some((ownerId) => ownerIds.has(ownerId));
+	};
 }
 
 export async function applyDecision(
@@ -39,10 +67,9 @@ export async function decideComments(
 	{
 		decision,
 		ids,
-		ownerEmails,
-	}: { decision: Decision; ids: ReadonlyArray<string>; ownerEmails: ReadonlyArray<string> },
+		isOwnerCandidate,
+	}: { decision: Decision; ids: ReadonlyArray<string>; isOwnerCandidate: OwnerCheck },
 ): Promise<DecisionReport> {
-	const isOwnerCandidate = createOwnerCheck(ownerEmails);
 	const report: DecisionReport = { decided: [], refused: [] };
 	const uniqueIds = new Set(ids);
 
@@ -60,7 +87,7 @@ export async function decideComments(
 			continue;
 		}
 
-		const isOwner = decision === 'approved' && isOwnerCandidate(comment);
+		const isOwner = decision === 'approved' && (await isOwnerCandidate(comment));
 
 		await applyDecision(store, { decision, id, isOwner });
 		report.decided.push({ id, isOwner });

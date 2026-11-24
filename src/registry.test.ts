@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { buildThreadRegistry, createThreadResolver, isThreadOpen } from '#registry.ts';
+import {
+	buildThreadRegistry,
+	createThreadResolver,
+	isThreadOpen,
+	threadRegistrySchema,
+} from '#registry.ts';
 
 describe('the thread resolver', () => {
 	test('loads the registry once and answers each key, former keys included', async () => {
@@ -58,25 +63,27 @@ describe('the thread resolver', () => {
 });
 
 describe('buildThreadRegistry', () => {
-	test("registers each former key under its page's path and closing time", () => {
+	test("registers each former key under its page's path, closing time and owners", () => {
 		const registry = buildThreadRegistry([
 			{
 				closesAt: 0,
 				formerKeys: ['mixes/old-slug'],
 				key: 'mixes/voyager',
+				owners: ['soren'],
 				path: '/mixes/voyager/',
 			},
 			{ key: 'posts/hello', path: '/hello/' },
 		]);
 
 		expect(registry).toEqual({
-			'mixes/old-slug': { closesAt: 0, path: '/mixes/voyager/' },
-			'mixes/voyager': { closesAt: 0, path: '/mixes/voyager/' },
+			'mixes/old-slug': { closesAt: 0, owners: ['soren'], path: '/mixes/voyager/' },
+			'mixes/voyager': { closesAt: 0, owners: ['soren'], path: '/mixes/voyager/' },
 			'posts/hello': { path: '/hello/' },
 		});
+		expect(threadRegistrySchema.parse(registry)).toEqual(registry);
 	});
 
-	test('refuses a key claimed with two pages or two closing times, and a key the handler would reject', () => {
+	test('refuses a key claimed with two pages, closing times or owner lists, and a key the handler would reject', () => {
 		expect(() =>
 			buildThreadRegistry([
 				{ key: 'posts/hello', path: '/hello/' },
@@ -87,6 +94,12 @@ describe('buildThreadRegistry', () => {
 			buildThreadRegistry([
 				{ key: 'posts/hello', path: '/hello/' },
 				{ closesAt: 0, formerKeys: ['posts/hello'], key: 'posts/hi', path: '/hello/' },
+			]),
+		).toThrow('resolves to both');
+		expect(() =>
+			buildThreadRegistry([
+				{ key: 'posts/hello', owners: ['basilisk'], path: '/hello/' },
+				{ formerKeys: ['posts/hello'], key: 'posts/hi', owners: ['soren'], path: '/hello/' },
 			]),
 		).toThrow('resolves to both');
 		expect(() => buildThreadRegistry([{ key: 'posts/en:42', path: '/hello/' }])).toThrow(

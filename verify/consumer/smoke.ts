@@ -30,10 +30,16 @@ const entries = Object.keys(manifest.exports).filter((entry) => !entry.includes(
 const owner = 'owner@example.test';
 const project = mkdtempSync(path.join(tmpdir(), 'astro-comments-consumer-'));
 
-function run(command: string, args: Array<string>, cwd = project): Run {
+function run(
+	command: string,
+	args: Array<string>,
+	cwd = project,
+	environment: NodeJS.ProcessEnv = process.env,
+): Run {
 	const result = spawnSync(command, args, {
 		cwd,
 		encoding: 'utf8',
+		env: environment,
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
 
@@ -207,14 +213,15 @@ write(
 
 export default defineCommentsConfig({
 	d1: { local: { binding: 'DB', configPath: 'wrangler.jsonc' }, remote: {} },
-	ownerEmails: ['${owner}'],
+	owners: { site: ['${owner}'] },
 	snapshotDirectory: 'node_modules/.cache/comments',
 	threadRegistry: 'dist/comment-threads.json',
 });
 `,
 );
 write('dist/comment-threads.json', JSON.stringify({ 'posts/hello': { path: '/hello/' } }));
-mkdirSync(path.join(project, 'migrations'));
+// Wrangler announces a `.dev.vars` on stdout, which `pending --json` must keep out of its output
+write('.dev.vars', 'TURNSTILE_SECRET_KEY=local\n');
 
 check(
 	'prints the usage for --help',
@@ -222,9 +229,9 @@ check(
 	(result) => isSuccessful(result) && result.stdout.includes('approve <id...>'),
 );
 check(
-	'writes the schema migration',
-	run(path.join(project, 'node_modules/.bin/astro-comments'), ['schema', 'migrations']),
-	isSuccessful,
+	'writes the schema migration into the migrations_dir it creates',
+	run(path.join(project, 'node_modules/.bin/astro-comments'), ['schema']),
+	(result) => isSuccessful(result) && existsSync(path.join(project, 'migrations')),
 );
 check(
 	'applies it to the local D1',
@@ -297,6 +304,18 @@ check(
 	'pulls',
 	bin('pull'),
 	(result) => isSuccessful(result) && result.stdout.includes('1 approved comment'),
+);
+
+// Without a `.dev.vars`, wrangler would load `.env` into the proxy as secrets; logging at `log` shows whether it did
+rmSync(path.join(project, '.dev.vars'));
+write('.env', 'DEPLOY_TOKEN=never-in-the-proxy\n');
+check(
+	"never reads the site's .env into the local proxy",
+	run(path.join(project, 'node_modules/.bin/astro-comments'), ['pending', '--local'], project, {
+		...process.env,
+		WRANGLER_LOG: 'log',
+	}),
+	(result) => isSuccessful(result) && !`${result.stdout}${result.stderr}`.includes('.env'),
 );
 
 rmSync(project, { recursive: true });

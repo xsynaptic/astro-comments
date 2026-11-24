@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { threadKeyPattern } from '#schemas.ts';
 
 // `closesAt` is in epoch seconds, as `createdAt` is; a page without it stays open
+// `owners` holds ids from the config's `owners`, never emails, since the file is a public asset
 const threadPageSchema = z.object({
 	closesAt: z.number().int().optional(),
+	owners: z.array(z.string()).optional(),
 	path: z.string(),
 });
 
@@ -17,25 +19,31 @@ export type ThreadRegistry = z.infer<typeof threadRegistrySchema>;
 export type ThreadResolver = (thread: string) => Promise<ThreadPage | undefined>;
 
 // `closesAt: 0` registers a page that keeps its comments but takes no more, so the orphans report leaves it out
+// Without `owners` every owner in the config counts on the page; an empty list counts none
 export interface ThreadEntry {
 	closesAt?: number;
 	formerKeys?: Array<string>;
 	key: string;
+	owners?: Array<string>;
 	path: string;
 }
 
 export function buildThreadRegistry(entries: Iterable<ThreadEntry>): ThreadRegistry {
 	const registry = new Map<string, ThreadPage>();
 
-	for (const { closesAt, formerKeys = [], key: currentKey, path } of entries) {
-		const page = closesAt === undefined ? { path } : { closesAt, path };
+	for (const { closesAt, formerKeys = [], key: currentKey, owners, path } of entries) {
+		const page: ThreadPage = { path };
+
+		if (closesAt !== undefined) page.closesAt = closesAt;
+		if (owners !== undefined) page.owners = owners;
 
 		for (const key of [currentKey, ...formerKeys]) {
 			if (!threadKeyPattern.test(key)) throw new Error(`Thread key ${key} is not a valid key`);
 
 			const claimed = registry.get(key);
 
-			if (claimed !== undefined && (claimed.path !== path || claimed.closesAt !== closesAt)) {
+			// Both pages are built in the same key order, so their JSON compares them field by field
+			if (claimed !== undefined && JSON.stringify(claimed) !== JSON.stringify(page)) {
 				throw new Error(
 					`Thread ${key} resolves to both ${JSON.stringify(claimed)} and ${JSON.stringify(page)}`,
 				);

@@ -2,9 +2,34 @@ import { expect, test } from 'vitest';
 
 import type { CommentModerationStore, CommentStatus, StoredComment } from '#store.ts';
 
-import { decideComments } from '#cli/moderation.ts';
+import { createOwnerCheck, decideComments } from '#cli/moderation.ts';
+import { createThreadResolver } from '#registry.ts';
 
 const owner = 'owner@example.test';
+
+const isSiteOwnerCandidate = createOwnerCheck(
+	{ basilisk: [owner] },
+	createThreadResolver(() => Promise.resolve({ 'mixes/voyager': { path: '/mixes/voyager/' } })),
+);
+
+const isNoOwnerCandidate = createOwnerCheck(
+	{},
+	createThreadResolver(() => Promise.resolve({})),
+);
+
+function pendingOn(thread: string, authorEmail?: string): StoredComment {
+	return {
+		author: 'Reader',
+		body: 'A comment.',
+		createdAt: 1,
+		id: 'pending',
+		isOwner: false,
+		source: 'web',
+		status: 'pending',
+		thread,
+		...(authorEmail === undefined ? undefined : { authorEmail }),
+	};
+}
 
 function createStore(
 	rows: Array<{ email?: string; id: string; status?: CommentStatus }>,
@@ -50,12 +75,12 @@ test('approving an owner candidate by id makes it the Owner, and only on approva
 	await decideComments(store, {
 		decision: 'approved',
 		ids: ['mine', 'theirs'],
-		ownerEmails: [owner],
+		isOwnerCandidate: isSiteOwnerCandidate,
 	});
 	await decideComments(store, {
 		decision: 'rejected',
 		ids: ['rejected-mine'],
-		ownerEmails: [owner],
+		isOwnerCandidate: isSiteOwnerCandidate,
 	});
 
 	expect(store.comments.map(({ id, isOwner, status }) => ({ id, isOwner, status }))).toEqual([
@@ -71,7 +96,7 @@ test('refuses an unknown id and an already decided comment, deciding the rest', 
 	const report = await decideComments(store, {
 		decision: 'approved',
 		ids: ['missing', 'done', 'waiting', 'waiting'],
-		ownerEmails: [],
+		isOwnerCandidate: isNoOwnerCandidate,
 	});
 
 	expect(report).toEqual({
@@ -82,4 +107,37 @@ test('refuses an unknown id and an already decided comment, deciding the rest', 
 		],
 	});
 	expect(store.comments.find((comment) => comment.id === 'done')?.status).toBe('spam');
+});
+
+test("marks a candidate only on a page that lists the comment's owner, or lists no owners", async () => {
+	const isOwnerCandidate = createOwnerCheck(
+		{ basilisk: [owner], soren: ['soren@example.test', 'old@example.test'] },
+		createThreadResolver(() =>
+			Promise.resolve({
+				'labels/y': { path: '/labels/y/' },
+				'posts/closed-off': { owners: [], path: '/posts/closed-off/' },
+				'releases/soren': { owners: ['soren'], path: '/releases/soren/' },
+			}),
+		),
+	);
+
+	expect(await isOwnerCandidate(pendingOn('releases/soren', 'Old@Example.test'))).toBe(true);
+	expect(await isOwnerCandidate(pendingOn('releases/soren', owner))).toBe(false);
+	expect(await isOwnerCandidate(pendingOn('labels/y', owner))).toBe(true);
+	expect(await isOwnerCandidate(pendingOn('labels/y', 'soren@example.test'))).toBe(true);
+	expect(await isOwnerCandidate(pendingOn('posts/closed-off', owner))).toBe(false);
+	expect(await isOwnerCandidate(pendingOn('posts/unregistered', owner))).toBe(false);
+});
+
+test("reads the registry only for an owner's email, so a queue without one needs no build", async () => {
+	const isOwnerCandidate = createOwnerCheck(
+		{ basilisk: [owner] },
+		createThreadResolver(() =>
+			Promise.reject(new Error('No thread registry; build the site first')),
+		),
+	);
+
+	expect(await isOwnerCandidate(pendingOn('labels/y', 'reader@example.test'))).toBe(false);
+	expect(await isOwnerCandidate(pendingOn('labels/y'))).toBe(false);
+	await expect(isOwnerCandidate(pendingOn('labels/y', owner))).rejects.toThrow('build the site');
 });

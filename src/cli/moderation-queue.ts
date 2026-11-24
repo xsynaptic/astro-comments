@@ -1,9 +1,9 @@
 import { styleText } from 'node:util';
 
-import type { Decision } from '#cli/moderation.ts';
+import type { Decision, OwnerCheck } from '#cli/moderation.ts';
 import type { CommentModerationStore, StoredComment } from '#store.ts';
 
-import { applyDecision, createOwnerCheck, decisionColours } from '#cli/moderation.ts';
+import { applyDecision, decisionColours } from '#cli/moderation.ts';
 import { printComment, printLegend, readKey } from '#cli/terminal.ts';
 
 export interface ModerationTally {
@@ -26,16 +26,21 @@ const choices = [
 
 export async function runModerationQueue(
 	store: CommentModerationStore,
-	ownerEmails: ReadonlyArray<string>,
+	isOwnerCandidate: OwnerCheck,
 ): Promise<ModerationTally> {
 	const pending = await store.listPending();
-	const isOwnerCandidate = createOwnerCheck(ownerEmails);
+	const candidateIds = new Set<string>();
+
+	for (const comment of pending) {
+		if (await isOwnerCandidate(comment)) candidateIds.add(comment.id);
+	}
+
 	const tally: ModerationTally = { approved: 0, rejected: 0, skipped: 0, spam: 0 };
 
 	if (pending.length === 0) console.log(styleText('green', '✓ Nothing pending'));
 
 	for (const [index, comment] of pending.entries()) {
-		const isCandidate = isOwnerCandidate(comment);
+		const isCandidate = candidateIds.has(comment.id);
 		const choice = await promptChoice(comment, {
 			isLast: index === pending.length - 1,
 			marker: `${String(index + 1)}/${String(pending.length)}${isCandidate ? styleText('yellow', ' Owner') : ''}`,
@@ -45,7 +50,7 @@ export async function runModerationQueue(
 
 		if (choice.key === 'A') {
 			const remaining = pending.slice(index);
-			const approvable = remaining.filter((candidate) => !isOwnerCandidate(candidate));
+			const approvable = remaining.filter((candidate) => !candidateIds.has(candidate.id));
 
 			await approveAll(store, approvable, tally);
 			tally.skipped += remaining.length - approvable.length;

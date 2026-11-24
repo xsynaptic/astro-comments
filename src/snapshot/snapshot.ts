@@ -51,11 +51,17 @@ export async function writeCommentsSnapshot(
 	filePath: string,
 ): Promise<SnapshotTally> {
 	const [rows, pending] = await Promise.all([store.listApproved(), store.listPending()]);
-	const snapshot = { pulledAt: new Date().toISOString(), rows } satisfies CommentsSnapshot;
 
 	await mkdir(path.dirname(filePath), { recursive: true });
-	await writeFile(`${filePath}.tmp`, JSON.stringify(snapshot));
+	await writeFile(`${filePath}.tmp`, serializeSnapshot(new Date().toISOString(), rows));
 	await rename(`${filePath}.tmp`, filePath);
 
 	return { approved: rows.length, pending: pending.length };
+}
+
+// One row per line, so a site committing the file sees an approval as a one-line diff
+function serializeSnapshot(pulledAt: string, rows: Array<ApprovedComment>): string {
+	const lines = rows.map((row) => JSON.stringify(row)).join(',\n');
+
+	return `{"pulledAt":${JSON.stringify(pulledAt)},"rows":[\n${lines}\n]}\n`;
 }

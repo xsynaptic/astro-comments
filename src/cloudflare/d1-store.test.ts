@@ -192,17 +192,23 @@ describe('moderation', () => {
 		});
 	});
 
-	test('lists only approved comments, grouped by thread in date order', async () => {
+	test('lists only approved comments, grouped by thread in date order, ties by id', async () => {
 		seed([
 			{ createdAt: 20, id: 'b-late', status: 'approved', thread: 'mixes/b' },
-			{ createdAt: 10, id: 'b-early', status: 'approved', thread: 'mixes/b' },
+			{ createdAt: 10, id: 'b-early-2', status: 'approved', thread: 'mixes/b' },
+			{ createdAt: 10, id: 'b-early-1', status: 'approved', thread: 'mixes/b' },
 			{ createdAt: 30, id: 'a', status: 'approved', thread: 'mixes/a' },
 			{ createdAt: 1, id: 'held', status: 'pending', thread: 'mixes/a' },
 		]);
 
 		const approved = await createD1CommentStore(createBinding()).listApproved();
 
-		expect(approved.map((comment) => comment.id)).toEqual(['a', 'b-early', 'b-late']);
+		expect(approved.map((comment) => comment.id)).toEqual([
+			'a',
+			'b-early-1',
+			'b-early-2',
+			'b-late',
+		]);
 	});
 
 	test('answers an approved comment in the render shape, with no private column', async () => {

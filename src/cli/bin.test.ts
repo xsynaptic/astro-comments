@@ -18,7 +18,7 @@ test('prints the usage for --help and -h', () => {
 });
 
 test('answers a bad invocation in one line, with no stack trace and before reading any config', () => {
-	for (const args of [['--bogus'], ['frob'], ['approve'], ['delete'], ['schema']]) {
+	for (const args of [['--bogus'], ['frob'], ['approve'], ['delete'], ['schema', 'migrations']]) {
 		const { status, stderr } = runBin(...args);
 
 		expect(status).toBe(1);

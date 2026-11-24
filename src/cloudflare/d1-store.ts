@@ -62,8 +62,9 @@ export function createD1CommentStore(
 	database: D1Binding,
 	{ publishEmailHash = true }: D1CommentStoreOptions = {},
 ): CommentModerationStore & CommentStore {
+	// `id` breaks ties so a row keeps its line in the snapshot from one pull to the next
 	const selectApproved = `SELECT ${approvedColumns}${publishEmailHash ? ', email_hash' : ''}
-FROM comments WHERE status = 'approved' ORDER BY thread, created_at`;
+FROM comments WHERE status = 'approved' ORDER BY thread, created_at, id`;
 
 	return {
 		async countRecentComments(ipHash, since) {

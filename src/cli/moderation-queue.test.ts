@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { CommentModerationStore, StoredComment } from '#store.ts';
 
 import { runModerationQueue } from '#cli/moderation-queue.ts';
+import { createOwnerCheck } from '#cli/moderation.ts';
+import { createThreadResolver } from '#registry.ts';
 
 const keys = vi.hoisted<Array<string>>(() => []);
 
@@ -13,6 +15,11 @@ vi.mock('#cli/terminal.ts', () => ({
 }));
 
 const owner = 'owner@example.test';
+
+const isOwnerCandidate = createOwnerCheck(
+	{ basilisk: [owner] },
+	createThreadResolver(() => Promise.resolve({ 'mixes/voyager': { path: '/mixes/voyager/' } })),
+);
 
 let comments: Array<StoredComment>;
 
@@ -68,7 +75,7 @@ describe('the moderation queue', () => {
 		]);
 		keys.push('a', 'a');
 
-		await runModerationQueue(createStore(), [owner]);
+		await runModerationQueue(createStore(), isOwnerCandidate);
 
 		expect(stateOf('mine')).toEqual({ isOwner: true, status: 'approved' });
 		expect(stateOf('theirs')).toEqual({ isOwner: false, status: 'approved' });
@@ -78,7 +85,7 @@ describe('the moderation queue', () => {
 		seed([{ email: owner, id: 'impostor' }]);
 		keys.push('r');
 
-		await runModerationQueue(createStore(), [owner]);
+		await runModerationQueue(createStore(), isOwnerCandidate);
 
 		expect(stateOf('impostor')).toEqual({ isOwner: false, status: 'rejected' });
 	});
@@ -87,7 +94,7 @@ describe('the moderation queue', () => {
 		seed([{ id: 'first' }, { email: owner, id: 'candidate' }, { id: 'last' }]);
 		keys.push('A');
 
-		const tally = await runModerationQueue(createStore(), [owner]);
+		const tally = await runModerationQueue(createStore(), isOwnerCandidate);
 
 		expect(stateOf('first').status).toBe('approved');
 		expect(stateOf('last').status).toBe('approved');

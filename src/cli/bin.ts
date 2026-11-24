@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { parseArgs, styleText } from 'node:util';
 
 import type { CommentsConfig } from '#cli/define-config.ts';
@@ -14,7 +15,7 @@ import {
 	reportOrphans,
 } from '#cli/commands.ts';
 import { loadCommentsConfig } from '#cli/config.ts';
-import { writeSchemaMigration } from '#cli/schema.ts';
+import { resolveMigrationsDirectory, writeSchemaMigration } from '#cli/schema.ts';
 
 const usage = `Usage: astro-comments <command> [options]
 
@@ -27,7 +28,7 @@ Commands:
   delete <id>          Erase one comment after a prompt, or at once with --yes; pulls if it was approved
   pull                 Write the approved comments snapshot
   orphans              List threads the built registry does not hold
-  schema <dir>         Write the comments table as the next migration in <dir>
+  schema               Write the comments table as the next migration in the D1 binding's migrations_dir
 
 Options:
   --local              Use the local D1 database rather than the remote one
@@ -55,15 +56,6 @@ async function run(): Promise<void> {
 
 	if (command === undefined || values.help) {
 		console.log(usage);
-		return;
-	}
-
-	if (command === 'schema') {
-		const [directory] = operands;
-
-		if (directory === undefined) throw new Error('schema needs a directory');
-
-		console.log(`Wrote ${await writeSchemaMigration(directory)}`);
 		return;
 	}
 
@@ -122,6 +114,19 @@ function toCommand(
 		case 'pull': {
 			return async (config) => {
 				await pullComments(config, target);
+			};
+		}
+		case 'schema': {
+			if (operands.length > 0) {
+				throw new Error("schema takes no directory; it writes to the D1 binding's migrations_dir");
+			}
+
+			return async (config) => {
+				const written = await writeSchemaMigration(
+					await resolveMigrationsDirectory(config.d1.local),
+				);
+
+				console.log(`Wrote ${path.relative(process.cwd(), written)}`);
 			};
 		}
 		default: {

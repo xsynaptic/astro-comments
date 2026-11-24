@@ -3,7 +3,7 @@ import { styleText } from 'node:util';
 
 import type { CommentsConfig } from '#cli/define-config.ts';
 import type { ModerationTally } from '#cli/moderation-queue.ts';
-import type { Decision, DecisionReport } from '#cli/moderation.ts';
+import type { Decision, DecisionReport, OwnerCheck } from '#cli/moderation.ts';
 import type { SnapshotTally, SnapshotTarget } from '#snapshot/snapshot.ts';
 import type { CommentModerationStore, StoredComment } from '#store.ts';
 
@@ -11,7 +11,9 @@ import { openCommentStore } from '#cli/config.ts';
 import { runModerationQueue } from '#cli/moderation-queue.ts';
 import { createOwnerCheck, decideComments, decisionColours } from '#cli/moderation.ts';
 import { findOrphanedThreads, printOrphanedThreads } from '#cli/orphans.ts';
+import { readThreadRegistry } from '#cli/registry-file.ts';
 import { printComment, readKey } from '#cli/terminal.ts';
+import { createThreadResolver } from '#registry.ts';
 import { toSnapshotFile, writeCommentsSnapshot } from '#snapshot/snapshot.ts';
 
 export async function decideByIds(
@@ -20,7 +22,7 @@ export async function decideByIds(
 	{ decision, ids }: { decision: Decision; ids: ReadonlyArray<string> },
 ): Promise<DecisionReport> {
 	const report = await withStore(config, target, (store) =>
-		decideComments(store, { decision, ids, ownerEmails: config.ownerEmails }),
+		decideComments(store, { decision, ids, isOwnerCandidate: createConfigOwnerCheck(config) }),
 	);
 
 	for (const { id, isOwner } of report.decided) {
@@ -74,26 +76,23 @@ export async function listPendingComments(
 	target: SnapshotTarget,
 	{ isJson }: { isJson: boolean },
 ): Promise<void> {
-	const isOwnerCandidate = createOwnerCheck(config.ownerEmails);
+	const isOwnerCandidate = createConfigOwnerCheck(config);
 	const pending = await withStore(config, target, (store) => store.listPending());
+	const rows = [];
+
+	for (const comment of pending) {
+		rows.push({ ...comment, isOwnerCandidate: await isOwnerCandidate(comment) });
+	}
 
 	if (isJson) {
-		const rows = pending.map((comment) => ({
-			...comment,
-			isOwnerCandidate: isOwnerCandidate(comment),
-		}));
-
 		console.log(JSON.stringify(rows));
 		return;
 	}
 
-	if (pending.length === 0) console.log(styleText('green', '✓ Nothing pending'));
+	if (rows.length === 0) console.log(styleText('green', '✓ Nothing pending'));
 
-	for (const comment of pending) {
-		printComment(
-			comment,
-			isOwnerCandidate(comment) ? styleText('yellow', 'Owner') : styleText('dim', 'pending'),
-		);
+	for (const { isOwnerCandidate: isCandidate, ...comment } of rows) {
+		printComment(comment, isCandidate ? styleText('yellow', 'Owner') : styleText('dim', 'pending'));
 	}
 }
 
@@ -111,7 +110,7 @@ export async function moderateComments(
 	const tally = await withStore(config, target, async (store) => {
 		console.log(styleText('bold', `Moderation queue · ${target}`));
 
-		return runModerationQueue(store, config.ownerEmails);
+		return runModerationQueue(store, createConfigOwnerCheck(config));
 	});
 
 	console.log(
@@ -153,6 +152,13 @@ export async function pullComments(
 	if (tally.pending > 0) console.log(styleText('yellow', `${String(tally.pending)} pending`));
 
 	return tally;
+}
+
+function createConfigOwnerCheck(config: CommentsConfig): OwnerCheck {
+	return createOwnerCheck(
+		config.owners,
+		createThreadResolver(() => readThreadRegistry(config.threadRegistry)),
+	);
 }
 
 async function isDeleteConfirmed(comment: StoredComment): Promise<boolean> {

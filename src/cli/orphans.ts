@@ -1,10 +1,9 @@
-import { readFile } from 'node:fs/promises';
 import { styleText } from 'node:util';
 
 import type { CommentModerationStore } from '#store.ts';
 
+import { readThreadRegistry } from '#cli/registry-file.ts';
 import { toPrintable } from '#cli/terminal.ts';
-import { threadRegistrySchema } from '#registry.ts';
 
 export interface OrphanedThread {
 	approved: number;
@@ -18,7 +17,7 @@ export async function findOrphanedThreads(
 	registryFile: string,
 	ignoredThreads: ReadonlyArray<string> = [],
 ): Promise<Array<OrphanedThread>> {
-	const registry = threadRegistrySchema.parse(JSON.parse(await readFile(registryFile, 'utf8')));
+	const registry = await readThreadRegistry(registryFile);
 	const [approved, pending] = await Promise.all([store.listApproved(), store.listPending()]);
 	const ignored = new Set(ignoredThreads);
 	const orphans = new Map<string, OrphanedThread>();
