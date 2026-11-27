@@ -1,16 +1,29 @@
+import { z } from 'zod';
+
 import type { CommentChallenge } from '#submission.ts';
 
 export interface TurnstileChallengeOptions {
+	action?: string;
+	hostnames: ReadonlyArray<string>;
 	timeoutMs?: number;
 }
 
 const siteverifyUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+// Rejects every real token, and answers with `example.com` as the host and no action
+const passingTestSecretKey = '1x0000000000000000000000000000000AA';
+
 const turnstileTokenField = 'cf-turnstile-response';
+
+const siteverifySchema = z.object({
+	action: z.string().optional(),
+	hostname: z.string().optional(),
+	success: z.boolean(),
+});
 
 export function createTurnstileChallenge(
 	secretKey: string,
-	{ timeoutMs = 10_000 }: TurnstileChallengeOptions = {},
+	{ action, hostnames, timeoutMs = 10_000 }: TurnstileChallengeOptions,
 ): CommentChallenge {
 	return {
 		tokenField: turnstileTokenField,
@@ -31,13 +44,17 @@ export function createTurnstileChallenge(
 			// An outage is a 500, not a visitor who failed the challenge
 			if (!response.ok) throw new Error(`Turnstile siteverify answered ${String(response.status)}`);
 
-			return isSuccess(await response.json());
+			const result = siteverifySchema.safeParse(await response.json());
+
+			if (!result.success || !result.data.success) return false;
+
+			if (secretKey === passingTestSecretKey) return true;
+
+			const { hostname } = result.data;
+
+			if (hostname === undefined || !hostnames.includes(hostname)) return false;
+
+			return action === undefined || result.data.action === action;
 		},
 	};
-}
-
-function isSuccess(result: unknown): boolean {
-	return (
-		typeof result === 'object' && result !== null && 'success' in result && result.success === true
-	);
 }

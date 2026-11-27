@@ -1,6 +1,7 @@
 import type { CommentChallengeWidget } from '#element/challenge-widget.ts';
 
 export interface TurnstileWidgetOptions {
+	action?: string;
 	size?: 'compact' | 'flexible' | 'normal';
 	theme?: 'auto' | 'dark' | 'light';
 }

@@ -1,5 +1,11 @@
 # @xsynaptic/astro-comments
 
+## 0.6.0
+
+### Minor Changes
+
+- `createTurnstileChallenge` requires `hostnames` and refuses a token solved on any other host; an optional `action` must match the one `TurnstileWidget` now sets. Cloudflare's passing test secret skips both checks
+
 ## 0.5.0
 
 ### Minor Changes
